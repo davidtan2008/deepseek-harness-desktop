@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **终端无法启动（pty.create 报 spawn EBADF）**：`tryNodePty` 仍按旧版布局检查 `build/Release/spawn-helper`，而 node-pty ≥ 1.1 改用 `prebuilds/<platform>-<arch>/`，导致原生 PTY 后端被永久跳过、落入管道回退链。现同时探测两种布局，并在首次使用时为缺失执行位的 `spawn-helper` 恢复 0755（pnpm 安装的预构建产物为 0644，posix_spawnp 会以 EACCES 拒绝）。管道回退链同步加固：python 桥在第 4 个 fd 触发 EBADF 时自动降级为三管道（仅失去 resize），macOS 增加 `script -q /dev/null` 真 PTY 回退层；修正 Windows 下 PATH 拼接误用 `:` 的分隔符 bug。
+- **搜索缓慢且无进度**：`execFile('rg')` 在 GUI 启动（PATH 不含 rg）时静默 ENOENT，始终退化为慢速 JS 遍历。现一次性探测 `RIPGREP_PATH`、常见安装位置与 PATH（未安装 ripgrep 时可 `brew install ripgrep` 提速两个数量级）；内容搜索改为 `rg --json` 流式解析，命中上限即终止子进程；`listFiles` 优先 `rg --files`。新增 `search:progress` 事件（250ms 节流）与 `search.cancel` 通道；搜索框 300ms 防抖自动搜索，显示实时命中数并可随时停止；取消后返回已命中的部分结果。
+
+### Added
+
+- **打开项目时 harness 面板自动切换工作区**：Host 就绪后，主进程通过其 Typert Gateway HTTP RPC（`workspace/create` → 必要时 `session/create`）把当前项目注册为 harness workspace，并把 web 端的持久化选中态（`dsh.sessions.current`）注入 AgentPanel iframe 后重载，实现左侧选项目、右侧 harness 面板跟随切换；iframe 未加载时挂起至 `did-frame-finish-load` 再注入。同一路径重复打开幂等复用已有 workspace/session。
+
 ### Docs
 
 - 新增贡献指南（CONTRIBUTING.md，含 submodule 更新 SOP 与提交规范）、实际架构文档（docs/architecture.md）、用户指南（docs/user-guide.md）、安全策略（SECURITY.md）与 PR 模板；README 增加文档索引。

@@ -38,11 +38,12 @@ apps/shell/src/
 ├── menu.ts            # 应用菜单 → 'menu:command' 事件下发给渲染层
 ├── ipc.ts             # IPC 注册表（唯一 ipcMain 入口）+ chokidar 项目监听
 ├── host.ts            # HostProcess：子进程状态机（见 §4）
+├── harness-api.ts     # Host HTTP RPC 客户端 + iframe 工作区种子注入（见 §6.1）
 ├── paths.ts           # 路径解析：harness 探测、DSH_HOME、设置/MCP 文件位置
 ├── fs-service.ts      # 目录/文件读写/重命名/删除/系统对话框/在 OS 中显示
 ├── git-service.ts     # git CLI 封装：status/diff/stage/commit/push/pull/branch/log
-├── search-service.ts  # ripgrep 优先，缺失时回退文件系统遍历
-├── pty-service.ts     # node-pty 集成终端，加载失败回退管道 shell（Windows 走 pty-bridge）
+├── search-service.ts  # ripgrep 优先（多路径探测 + --json 流式 + 进度/取消），缺失时回退文件系统遍历
+├── pty-service.ts     # node-pty 集成终端（prebuilds 布局 + 执行位自修复），失败回退 python 桥/script/管道 shell
 ├── mcp-service.ts     # MCP server 配置读写 → ~/.dsh/desktop-mcp.patch.yml
 ├── settings-store.ts  # 应用设置持久化 → userData/settings.json
 ├── credentials.ts     # API Key：safeStorage 加密 + 同步 ~/.dsh/.credentials.yaml
@@ -83,10 +84,11 @@ packages/shared/src/
 | `window.` | minimize / maximize / close / new / setTitle | 窗口控制 |
 | `project.` | openDialog / open / clone / recent | 项目打开、克隆、最近列表 |
 | `fs.` | readDir / readFile / writeFile / stat / mkdir / createFile / rename / remove / reveal | 文件系统 |
-| `search.` | files / content | 快开过滤 / 全局内容搜索 |
+| `search.` | files / content / cancel | 快开过滤 / 全局内容搜索（流式 + 进度）/ 取消进行中的搜索 |
 | `git.` | status / diff / stage / unstage / commit / push / pull / checkout / branches / log | SCM |
 | `pty.` | create / write / resize / kill | 终端会话 |
 | `host.` | status / restart | Host 查询与重启 |
+| `workspace.` | sync | 把当前项目注册为 harness workspace 并切换 AgentPanel（见 §6.1） |
 | `credentials.` | has / set / clear | API Key |
 | `mcp.` | list / save | MCP 配置 |
 | 其他 | rules.list / inlineEdit.run / dialog.openFiles / dialog.saveFile / shell.openExternal | Rules、行内编辑、对话框、外链 |
@@ -99,6 +101,7 @@ packages/shared/src/
 | `settings:changed` | `AppSettings` | 设置写入后广播 |
 | `fs:changed` | `{ path, type }` | chokidar 监听项目目录（忽略 node_modules/.git/dist/out，深度 8） |
 | `pty:data` / `pty:exit` | `{ id, data/exitCode }` | 终端输出与退出 |
+| `search:progress` | `{ requestId, phase, count }` | 流式搜索命中数（250ms 节流），phase: running/done/cancelled |
 | `menu:command` | `string` | 菜单/快捷键命令（渲染层再以 DOM CustomEvent `dhd-menu` 分发） |
 
 ## 4. Host 生命周期（`host.ts`）
@@ -136,6 +139,16 @@ node --import tsx/esm <harness>/apps/cli/src/bin.ts web [--patch ~/.dsh/desktop-
 - **凭证**：API Key 经 `safeStorage` 加密存 `userData/credentials.bin`（回退明文时文件权限 0600），并同步写入 `~/.dsh/.credentials.yaml`（`DEEPSEEK_API_KEY` ref，权限 0600）供 CLI/Host 侧读取。
 - **Agent 沙箱**：沙箱与审批由上游 Host 执行（Linux bwrap/Landlock、macOS Seatbelt、Windows restricted token）；桌面端设置里的 `sandboxMode` 只是对 Host preset 的偏好。
 - **网络边界**：Renderer ↔ Host 只经 loopback；Host URL 含一次性 token（`?token=...`）。
+
+## 6.1 工作区同步（`harness-api.ts`）
+
+打开项目（或 Host 变为 ready）时，渲染层调用 `workspace.sync(projectPath)`，Main 侧：
+
+1. 用启动 URL 的 token 走 `GET /?token=...` 换取 Host 的签名会话 cookie（一次性交换，缓存复用）；
+2. 以 Typert Gateway 线格式 `POST /api/workspace/create`（`payload: {args: {request: {path}}}`）注册工作区，workspace 无会话时再 `POST /api/session/create`；
+3. 通过 `WebFrameMain.executeJavaScript` 把 `{sessionId}` 写入 harness iframe 的 `dsh.sessions.current`（web 端的持久化选中态，见上游 `client/store` 的 `attachPersistence`）并 `location.reload()`，web 应用启动恢复逻辑（`restoreSelection`）随即打开该会话；iframe 尚未加载时挂起到 `did-frame-finish-load` 再注入。
+
+同一路径重复 sync 幂等（`workspace/create` 内建 `resolveByPath` 复用）。经 `DHD_HARNESS_URL` 采用的无 token Host 无法同步（返回 `host-without-token`，仅控制台告警，不影响使用）。
 
 ## 7. 与上游的关系
 
