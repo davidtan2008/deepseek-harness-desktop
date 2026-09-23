@@ -169,7 +169,7 @@ export class HostProcess {
         if (this.state.status === 'starting') {
           this.set({
             status: 'error',
-            message: 'Harness host did not become ready in time. Build the upstream repo with pnpm run build, or set DHD_HARNESS_URL to the printed dsh web URL.',
+            message: 'Harness host did not become ready in time. Run pnpm install && pnpm run build inside the harness/ submodule, or set DHD_HARNESS_URL to the printed dsh web URL.',
           })
           resolve(this.state)
         }
@@ -219,7 +219,7 @@ export class HostProcess {
     const tail = this.tail()
     const hint = running
       ? `本机 ${DEFAULT_ORIGIN} 已有 dsh web，但桌面需要启动时打印的完整 URL（含 ?token=）。把它设为环境变量 DHD_HARNESS_URL 后重启桌面；或关掉该进程，由桌面端用空闲端口自行拉起。`
-      : '请确认已在 deepseek-harness 目录执行 pnpm install && pnpm run build。'
+      : '请确认已在 harness/ 子模块（或 DHD_HARNESS_ROOT 指向的目录）执行 pnpm install && pnpm run build。'
     this.set({
       status: 'error',
       message: `Harness exited before ready (code ${code ?? 'null'}). ${hint} ${tail}`,
