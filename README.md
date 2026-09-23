@@ -4,7 +4,16 @@
 
 跨平台 AI IDE（macOS / Windows / Linux）：Agent 内核是上游 [DeepSeek Harness](https://www.deepseek.com/harness/)，桌面层提供 Cursor 风格的工作台——资源管理器、Monaco 多 Tab 编辑器、集成终端、Git 面板、命令面板、`Cmd/Ctrl+K` 行内编辑、MCP 配置与 Rules / Skills。
 
-设计文档见 [`docs/design.md`](docs/design.md)。
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/design.md](docs/design.md) | 原型设计、架构决策、技术选型与 P0–P3 落地路线图 |
+| [docs/architecture.md](docs/architecture.md) | 实际架构：进程模型、IPC 契约、服务层、Host 生命周期 |
+| [docs/user-guide.md](docs/user-guide.md) | 安装、快捷键、功能说明与常见问题 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 开发环境、提交规范、submodule 更新 SOP、发布流程 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本变更记录 |
+| [SECURITY.md](SECURITY.md) | 安全设计与漏洞报告方式 |
 
 ## 架构
 
@@ -31,9 +40,8 @@ deepseek-harness-desktop/
 │   ├── shared/              # 主进程 ↔ 渲染进程共享的类型与协议
 │   └── desktop-profile/     # dsh profile overlay（cordis.patch.yml）
 ├── harness/                 # 上游 deepseek-harness（git submodule，锁 commit）
-├── docs/
-│   └── design.md            # 原型、架构、技术选型与落地路线图
-└── .github/workflows/       # 三平台 CI（macOS / Ubuntu / Windows）
+├── docs/                    # design / architecture / user-guide
+└── .github/                 # 三平台 CI（macOS / Ubuntu / Windows）+ PR 模板
 ```
 
 ## 环境要求
