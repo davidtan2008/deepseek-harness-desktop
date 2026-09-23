@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, IpcEventMap, McpServerConfig, PtyCreateOptions } from '@dhd/shared'
+import type {
+  AppSettings,
+  FileSearchHit,
+  IpcEventMap,
+  McpServerConfig,
+  PtyCreateOptions,
+} from '@dhd/shared'
 
 const api = {
   invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
@@ -42,7 +48,9 @@ const api = {
   },
   search: {
     files: (root: string, query: string) => ipcRenderer.invoke('search.files', root, query) as Promise<string[]>,
-    content: (root: string, query: string) => ipcRenderer.invoke('search.content', root, query),
+    content: (root: string, query: string, requestId: string) =>
+      ipcRenderer.invoke('search.content', root, query, requestId) as Promise<FileSearchHit[]>,
+    cancel: (requestId: string) => ipcRenderer.invoke('search.cancel', requestId) as Promise<boolean>,
   },
   git: {
     status: (cwd: string) => ipcRenderer.invoke('git.status', cwd),

@@ -5,6 +5,10 @@ export function dhd() {
   return window.dhd
 }
 
+export function randomUUID(): string {
+  return crypto.randomUUID()
+}
+
 export function basename(filePath: string): string {
   return filePath.split(/[\\/]/).pop() ?? filePath
 }

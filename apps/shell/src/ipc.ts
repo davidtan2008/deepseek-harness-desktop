@@ -1,13 +1,13 @@
 import { BrowserWindow, ipcMain, shell as electronShell } from 'electron'
 import { watch, type FSWatcher } from 'chokidar'
-import type { AppSettings, McpServerConfig } from '@dhd/shared'
+import type { AppSettings, McpServerConfig, SearchPhase } from '@dhd/shared'
 import { hasApiKey, setApiKey, clearApiKey } from './credentials.ts'
 import * as fs from './fs-service.ts'
 import * as git from './git-service.ts'
 import { runInlineEdit } from './inline-edit.ts'
 import { listRuleFiles, loadMcp, saveMcp } from './mcp-service.ts'
 import { createPty, killPty, resizePty, writePty } from './pty-service.ts'
-import { listFiles, searchContent } from './search-service.ts'
+import { cancelSearch, listFiles, searchContent } from './search-service.ts'
 import { loadSettings, rememberProject, saveSettings } from './settings-store.ts'
 import type { HostProcess } from './host.ts'
 
@@ -67,7 +67,21 @@ export function registerIpc(ctx: IpcContext): void {
   ipcMain.handle('fs.reveal', (_e, target: string) => fs.revealInOs(target))
 
   ipcMain.handle('search.files', (_e, root: string, query: string) => listFiles(root, query))
-  ipcMain.handle('search.content', (_e, root: string, query: string) => searchContent(root, query))
+
+  const searchProgress = (sender: Electron.WebContents, requestId: string, phase: SearchPhase, count: number): void => {
+    if (!sender.isDestroyed()) sender.send('search:progress', { requestId, phase, count })
+  }
+  ipcMain.handle('search.content', async (e, root: string, query: string, requestId: string) => {
+    const hits = await searchContent(root, query, requestId, {
+      onProgress: (count) => searchProgress(e.sender, requestId, 'running', count),
+    })
+    searchProgress(e.sender, requestId, 'done', hits.length)
+    return hits
+  })
+  ipcMain.handle('search.cancel', (_e, requestId: string) => {
+    cancelSearch(requestId)
+    return true
+  })
 
   ipcMain.handle('git.status', (_e, cwd: string) => git.gitStatus(cwd))
   ipcMain.handle('git.diff', (_e, cwd: string, file?: string, staged?: boolean) => git.gitDiff(cwd, file, staged))

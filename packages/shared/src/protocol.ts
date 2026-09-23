@@ -129,6 +129,14 @@ export interface PtyCreateOptions {
   rows: number
 }
 
+export type SearchPhase = 'running' | 'done' | 'cancelled'
+
+export interface SearchProgressEvent {
+  requestId: string
+  phase: SearchPhase
+  count: number
+}
+
 export type IpcChannel =
   | 'app.version'
   | 'app.platform'
@@ -155,6 +163,7 @@ export type IpcChannel =
   | 'fs.reveal'
   | 'search.files'
   | 'search.content'
+  | 'search.cancel'
   | 'git.status'
   | 'git.diff'
   | 'git.stage'
@@ -189,6 +198,7 @@ export type IpcEventChannel =
   | 'fs:changed'
   | 'menu:command'
   | 'settings:changed'
+  | 'search:progress'
 
 export interface IpcEventMap {
   'host:changed': HostState
@@ -197,6 +207,7 @@ export interface IpcEventMap {
   'fs:changed': { path: string; type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir' }
   'menu:command': string
   'settings:changed': AppSettings
+  'search:progress': SearchProgressEvent
 }
 
 export const DEFAULT_WINDOW: WindowState = {
