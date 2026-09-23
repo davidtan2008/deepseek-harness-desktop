@@ -11,7 +11,7 @@
   "scripts": {
     "dev": "pnpm --filter @dhd/shared build && concurrently -k \"pnpm --filter @dhd/workbench dev\" \"pnpm --filter @dhd/shell dev\"",
     "build": "pnpm --filter @dhd/shared build && pnpm --filter @dhd/workbench build && pnpm --filter @dhd/shell build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm --filter @dhd/shared build && pnpm -r typecheck",
     "pack": "pnpm build && pnpm --filter @dhd/shell pack:app",
     "pack:mac": "pnpm build && pnpm --filter @dhd/shell pack:mac",
     "pack:win": "pnpm build && pnpm --filter @dhd/shell pack:win",
