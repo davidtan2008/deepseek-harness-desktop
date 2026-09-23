@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { chmodSync, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -39,6 +39,7 @@ function shellEnv(): Record<string, string> {
     if (key.startsWith('ELECTRON_')) continue
     env[key] = value
   }
+  const sep = process.platform === 'win32' ? ';' : ':'
   const pathParts = [
     '/opt/homebrew/bin',
     '/usr/local/bin',
@@ -48,7 +49,7 @@ function shellEnv(): Record<string, string> {
     '/sbin',
     env.PATH,
   ].filter(Boolean)
-  env.PATH = [...new Set(pathParts.join(':').split(':').filter(Boolean))].join(':')
+  env.PATH = [...new Set(pathParts.join(sep).split(sep).filter(Boolean))].join(sep)
   env.TERM = 'xterm-256color'
   env.COLORTERM = 'truecolor'
   env.TERM_PROGRAM = 'DeepSeekHarnessDesktop'
@@ -103,13 +104,36 @@ function spawnPiped(
   })
 }
 
+/**
+ * node-pty >= 1.1 ships `prebuilds/<platform>-<arch>/` next to the native
+ * module; older source builds place artifacts under `build/Release/`. The
+ * packaged spawn-helper sometimes lands without the executable bit (pnpm
+ * restores it mode 0644), which makes the native spawn fail with
+ * `posix_spawnp` EACCES — restore 0755 once, best effort.
+ */
+function resolvePtyHelper(entry: string): string | undefined {
+  const base = dirname(dirname(entry))
+  const candidates = [
+    join(base, 'build', 'Release', 'spawn-helper'),
+    join(base, 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper'),
+  ]
+  const helper = candidates.find((p) => existsSync(p))
+  if (!helper) return undefined
+  try {
+    chmodSync(helper, 0o755)
+  } catch {
+    // read-only install or packaged asar; the bit may already be correct
+  }
+  return helper
+}
+
 function tryNodePty(shell: string, cwd: string, cols: number, rows: number, env: Record<string, string>): PtyHandle | undefined {
   try {
     const req = packageRequire()
     const entry = req.resolve('node-pty')
-    const helper = join(dirname(entry), '..', 'build', 'Release', 'spawn-helper')
-    if (!existsSync(helper)) {
-      console.warn('[pty] node-pty spawn-helper missing, skip native backend')
+    const helper = resolvePtyHelper(entry)
+    if (!helper) {
+      console.warn('[pty] node-pty spawn-helper not found, skip native backend')
       return undefined
     }
     const mod = req('node-pty') as {
@@ -164,14 +188,23 @@ async function spawnViaPython(
   const bridge = resolvePtyBridge()
   if (!bridge) throw new Error('pty-bridge.py not found')
   console.info(`[pty] python bridge ${python} ${bridge}`)
-  return spawnPiped(python, ['-u', bridge], cwd, {
+  const bridgeEnv = {
     ...env,
     DHD_PTY_CWD: cwd,
     DHD_PTY_SHELL: shell,
     COLUMNS: String(cols),
     LINES: String(rows),
     PYTHONUNBUFFERED: '1',
-  }, true)
+  }
+  try {
+    return await spawnPiped(python, ['-u', bridge], cwd, bridgeEnv, true)
+  } catch (err) {
+    // Hosts whose std fd table rejects a 4th slot (spawn EBADF) still work
+    // over three pipes; the bridge treats a missing control fd as optional.
+    if ((err as NodeJS.ErrnoException).code !== 'EBADF') throw err
+    console.warn('[pty] python bridge without resize control fd (EBADF)')
+    return spawnPiped(python, ['-u', bridge], cwd, bridgeEnv)
+  }
 }
 
 async function spawnFallback(
@@ -193,6 +226,19 @@ async function spawnFallback(
   if (process.platform === 'linux') {
     try {
       return await spawnPiped('/usr/bin/script', ['-qefc', `${shell} -il`, '/dev/null'], cwd, env)
+    } catch (err) {
+      errors.push(`script: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  if (process.platform === 'darwin') {
+    // macOS `script` wraps the shell in a real PTY and speaks over our pipes,
+    // unlike the python bridge it survives hosts where extra stdio fds fail.
+    try {
+      return await spawnPiped('/usr/bin/script', ['-q', '/dev/null', shell, '-il'], cwd, {
+        ...env,
+        COLUMNS: String(cols),
+        LINES: String(rows),
+      })
     } catch (err) {
       errors.push(`script: ${err instanceof Error ? err.message : String(err)}`)
     }
