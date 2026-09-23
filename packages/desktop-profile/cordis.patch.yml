@@ -1,0 +1,15 @@
+# DeepSeek Harness Desktop overlay
+#
+# Applied as: dsh web --no-open --port 0 --patch <this-file>
+# Patches replace a whole row config. Only override rows whose shipped
+# defaults we must pin for the desktop process model.
+#
+# Do not insert unpublished plugin packages here — the Host resolves from
+# the Harness installation, not from this desktop workspace.
+
+- id: webserver
+  config:
+    host: 127.0.0.1
+    port: 0
+    compression: gzip
+    compressionThresholdBytes: 1024

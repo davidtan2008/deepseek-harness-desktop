@@ -1,0 +1,7 @@
+{
+  "name": "@dhd/desktop-profile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cordis overlay for DeepSeek Harness Desktop — applied with dsh --patch",
+  "license": "MIT"
+}
