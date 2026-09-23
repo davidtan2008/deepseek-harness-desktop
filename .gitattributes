@@ -1,0 +1,22 @@
+# Canonical text form is LF, enforced at checkout on every platform so the
+# toolchain (pnpm/esbuild/vite/electron-builder) sees one form on every host.
+* text=auto eol=lf
+
+# Windows command scripts require CRLF in the working tree.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binaries
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
+
+# Linguist
+pnpm-lock.yaml linguist-generated=true -diff

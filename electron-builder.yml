@@ -1,0 +1,41 @@
+appId: com.deepseek.harness.desktop
+productName: DeepSeek Harness Desktop
+copyright: Copyright © DeepSeek Harness Desktop
+asar: true
+directories:
+  output: ../../release
+  buildResources: build
+files:
+  - dist/**
+  - package.json
+extraMetadata:
+  main: dist/main.js
+extraResources:
+  - from: ../../packages/desktop-profile/cordis.patch.yml
+    to: desktop-profile/cordis.patch.yml
+  - from: ../workbench/dist
+    to: workbench
+  - from: scripts/pty-bridge.py
+    to: pty-bridge.py
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+    - zip
+  hardenedRuntime: true
+  gatekeeperAssess: false
+win:
+  target:
+    - nsis
+    - zip
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+publish:
+  provider: github
+  releaseType: release
