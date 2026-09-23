@@ -5,6 +5,7 @@ import type {
   IpcEventMap,
   McpServerConfig,
   PtyCreateOptions,
+  WorkspaceSyncResult,
 } from '@dhd/shared'
 
 const api = {
@@ -73,6 +74,10 @@ const api = {
   host: {
     status: () => ipcRenderer.invoke('host.status'),
     restart: () => ipcRenderer.invoke('host.restart'),
+  },
+  workspace: {
+    sync: (projectPath: string) =>
+      ipcRenderer.invoke('workspace.sync', projectPath) as Promise<WorkspaceSyncResult | { error: string }>,
   },
   credentials: {
     has: () => ipcRenderer.invoke('credentials.has') as Promise<boolean>,

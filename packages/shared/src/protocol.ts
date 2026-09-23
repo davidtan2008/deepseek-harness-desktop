@@ -129,6 +129,13 @@ export interface PtyCreateOptions {
   rows: number
 }
 
+/** Result of registering a project directory as a harness workspace. */
+export interface WorkspaceSyncResult {
+  workspaceId: string
+  sessionId: string
+  created: boolean
+}
+
 export type SearchPhase = 'running' | 'done' | 'cancelled'
 
 export interface SearchProgressEvent {
@@ -181,6 +188,7 @@ export type IpcChannel =
   | 'pty.kill'
   | 'host.status'
   | 'host.restart'
+  | 'workspace.sync'
   | 'credentials.has'
   | 'credentials.set'
   | 'credentials.clear'

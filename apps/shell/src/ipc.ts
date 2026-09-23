@@ -1,7 +1,8 @@
 import { BrowserWindow, ipcMain, shell as electronShell } from 'electron'
 import { watch, type FSWatcher } from 'chokidar'
-import type { AppSettings, McpServerConfig, SearchPhase } from '@dhd/shared'
+import type { AppSettings, McpServerConfig, SearchPhase, WorkspaceSyncResult } from '@dhd/shared'
 import { hasApiKey, setApiKey, clearApiKey } from './credentials.ts'
+import { HarnessApi, seedHarnessSession } from './harness-api.ts'
 import * as fs from './fs-service.ts'
 import * as git from './git-service.ts'
 import { runInlineEdit } from './inline-edit.ts'
@@ -112,6 +113,37 @@ export function registerIpc(ctx: IpcContext): void {
 
   ipcMain.handle('host.status', () => ctx.host.getState())
   ipcMain.handle('host.restart', () => ctx.host.restart())
+
+  const pendingSeed = new WeakMap<Electron.WebContents, { origin: string; sessionId: string }>()
+  ipcMain.handle('workspace.sync', async (e, projectPath: string): Promise<WorkspaceSyncResult | { error: string }> => {
+    const state = ctx.host.getState()
+    if (state.status !== 'ready') return { error: 'host-not-ready' }
+    if (!state.token) return { error: 'host-without-token' }
+    const api = new HarnessApi(state.origin, state.token)
+    try {
+      const result = await api.openWorkspace(projectPath)
+      const seeded = await seedHarnessSession(e.sender, state.origin, result.sessionId)
+      if (!seeded) {
+        // AgentPanel iframe not loaded yet; seed it as soon as the frame lands.
+        pendingSeed.set(e.sender, { origin: state.origin, sessionId: result.sessionId })
+        const onFrameLoad = (): void => {
+          const pending = pendingSeed.get(e.sender)
+          if (!pending) return
+          void seedHarnessSession(e.sender, pending.origin, pending.sessionId).then((ok) => {
+            if (ok) {
+              pendingSeed.delete(e.sender)
+              if (!e.sender.isDestroyed()) e.sender.removeListener('did-frame-finish-load', onFrameLoad)
+            }
+          })
+        }
+        e.sender.on('did-frame-finish-load', onFrameLoad)
+      }
+      return result
+    } catch (err) {
+      console.error('[workspace.sync]', err)
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
+  })
 
   ipcMain.handle('credentials.has', () => hasApiKey())
   ipcMain.handle('credentials.set', (_e, value: string) => setApiKey(value))

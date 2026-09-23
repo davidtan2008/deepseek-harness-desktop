@@ -11,6 +11,7 @@ import type {
   McpServerConfig,
   PtyCreateOptions,
   RuleFile,
+  WorkspaceSyncResult,
 } from '@dhd/shared'
 
 export interface DesktopApi {
@@ -49,7 +50,8 @@ export interface DesktopApi {
   }
   search: {
     files: (root: string, query: string) => Promise<string[]>
-    content: (root: string, query: string) => Promise<FileSearchHit[]>
+    content: (root: string, query: string, requestId: string) => Promise<FileSearchHit[]>
+    cancel: (requestId: string) => Promise<boolean>
   }
   git: {
     status: (cwd: string) => Promise<GitStatus>
@@ -72,6 +74,9 @@ export interface DesktopApi {
   host: {
     status: () => Promise<HostState>
     restart: () => Promise<HostState>
+  }
+  workspace: {
+    sync: (projectPath: string) => Promise<WorkspaceSyncResult | { error: string }>
   }
   credentials: {
     has: () => Promise<boolean>

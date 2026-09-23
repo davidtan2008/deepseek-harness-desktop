@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -130,6 +131,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActivePath(undefined)
     await dhd().window.setTitle(`${basename(path)} — DeepSeek Harness Desktop`)
   }, [])
+
+  // Follow the open project in the harness panel: once the host is ready,
+  // register the project as a harness workspace once per (project, host URL).
+  const syncedRef = useRef(new Set<string>())
+  useEffect(() => {
+    if (!projectPath || host.status !== 'ready') return
+    const key = `${host.url}::${projectPath}`
+    if (syncedRef.current.has(key)) return
+    syncedRef.current.add(key)
+    void dhd().workspace.sync(projectPath).then((result) => {
+      if ('error' in result) {
+        syncedRef.current.delete(key)
+        console.warn('[workspace.sync]', result.error)
+      }
+    }).catch((err) => {
+      syncedRef.current.delete(key)
+      console.warn('[workspace.sync] failed', err)
+    })
+  }, [projectPath, host])
 
   const openFile = useCallback(async (path: string) => {
     setActivePath(path)
