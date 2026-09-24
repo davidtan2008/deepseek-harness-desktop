@@ -15,6 +15,7 @@ import type {
   WorkspaceSyncResult,
 } from './protocol.js'
 import type { DesktopCapabilities } from './capabilities.js'
+import type { AgentTransportDescriptor, AgentTurnRequest } from './agent-transport.js'
 
 export interface DesktopApi {
   on<K extends keyof IpcEventMap>(channel: K, listener: (payload: IpcEventMap[K]) => void): () => void
@@ -77,6 +78,12 @@ export interface DesktopApi {
   host: {
     status: () => Promise<HostState>
     restart: () => Promise<HostState>
+  }
+  agent: {
+    status: () => Promise<AgentTransportDescriptor>
+    send: (request: AgentTurnRequest) => Promise<{ turnId: string }>
+    cancel: (turnId: string) => Promise<void>
+    resume: (turnId: string) => Promise<{ turnId: string }>
   }
   workspace: {
     sync: (projectPath: string) => Promise<WorkspaceSyncResult | { error: string }>

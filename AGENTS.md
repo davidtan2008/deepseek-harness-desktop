@@ -27,6 +27,8 @@ When sources disagree, fix the stale source or document the discrepancy. Do not 
 - `packages/shared/src/change-projection.ts`
 - `packages/shared/src/context-source.ts`
 - `apps/shell/src/agent/host-ipc-driver.ts`
+- `apps/shell/src/agent/harness-web-session-port.ts`
+- `apps/shell/src/agent-runtime.ts`
 - `docs/runtime-manifest.md`
 - the affected source and nearest tests
 

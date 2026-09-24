@@ -34,16 +34,17 @@ DeepSeek Harness 已经是一个强大的、可组合的 Agent runtime：模型�
 | 已实现并手工验证 | Electron Host 启停、文件树/编辑、搜索（含 fallback）、PTY（含 fallback）、Git 基础面板、workspace sync、统一退出清理 |
 | 已实现但缺少外层自动化回归 | Monaco 多 Tab、命令面板、MCP/Rules 入口、行内编辑、窗口布局 |
 | 上游能力 | Harness preset、Trajectory、工具卡、Skills、MCP、Session、subagent/fork/workflow/实验性 Agent Teams（在 iframe 中） |
-| 计划中 | 原生 Agent turn projection、per-turn diff、provider/agent roster、worktree 隔离、完整 runtime 捆绑、签名/公证和自动更新发行 |
+| 早期 native vertical slice | workspace sync 后 Main-owned AgentRuntime、structured context/prompt、tool/approval/change events；真实 provider/model review loop 未完成 |
+| 计划中 | per-turn before/after diff、provider/agent roster、worktree 隔离、完整 runtime 捆绑、签名/公证和自动更新发行 |
 
 重要限制：
 
-- Agent 面板当前是带 token URL 的 **`<iframe>`**，不是已经嵌入的原生 `dsh-client`。
-- “发送选区”当前可靠 fallback 是剪贴板；不能保证自动注入 Agent composer。
-- Changes 面板是仓库级 Git diff，不是按 Agent turn 归因的 diff。
+- Agent 面板的完整默认 surface 仍是带 token URL 的 **`<iframe>`**；workspace sync 后会尝试建立同一 Host/Session 的 native controls，但它不是已完成的原生 `dsh-client` 嵌入。
+- “发送选区”在 native channel 可用时写入结构化 Session context；iframe/剪贴板仍是明确 fallback。
+- Changes 面板仍是仓库级 Git diff；native `change-projection` 目前只显示 changed paths。
 - `defaultModel`、`defaultPreset` 和 `sandboxMode` 的桌面设置不能自动等同于 Host effective settings。
 - 打包配置目前不包含完整 Harness/Node 闭包；packaged Host 会在 runtime manifest 不完整时 fail closed，不会静默回退到系统 Node/npx。
-- 外层仓库当前没有完整 unit/E2E 测试套件；`pnpm test:contract` 覆盖 capability、IPC/preload 和上游 Desktop 静态兼容门，`typecheck` 和 `build` 不等于运行时验证。
+- 外层仓库当前没有完整 unit/E2E 测试套件；`pnpm test:contract` 覆盖 capability、IPC/preload、Host IPC/Session fixture 和上游 Desktop 静态兼容门，`typecheck` 和 `build` 不等于真实 provider/model 验证。
 
 完整、绑定版本的支持矩阵见 [docs/support-matrix.md](docs/support-matrix.md)。
 
@@ -88,12 +89,14 @@ flowchart LR
   UI --> Git[Git panel]
   UI --> Agent[Agent iframe\nHarness Web UI]
   Host --> Session[Session / Tools / Skills / MCP / Sandbox]
+  Main --> AgentRuntime[Native Session transport]
+  AgentRuntime --> Host
   Main --> Platform[FS / watcher / credentials / updater]
 ```
 
 当前关键边界：
 
-- Main 不执行 Agent 工具，不改 Session log，不在 Electron Main 挂载 Cordis。
+- Main 不执行 Agent 工具，不直接写 Session log，不在 Electron Main 挂载 Cordis；native runtime 只通过 Host Remote API 发送 prompt/读取 events。
 - Renderer 无 Node 集成，只通过 [`packages/shared/src/api.ts`](packages/shared/src/api.ts) 的白名单 API。
 - Host 解析顺序是 `DHD_HARNESS_ROOT` → 仓库 `harness/` → 兼容旧目录 → 打包资源；也可用 `DHD_HARNESS_URL` 采用外部 Host。
 - 详细的启动、workspace sync、PTY、watcher、退出和目标 transport 见 [docs/architecture.md](docs/architecture.md)。
@@ -106,7 +109,7 @@ flowchart LR
 | 文件与内容搜索 | ✅ | ripgrep 优先、进度、取消、JS fallback；失败不会伪装成无匹配 |
 | 集成终端 | ✅ | node-pty → Python/`script`/管道 fallback，Tab 切换保持会话 |
 | Git | ✅ | status/diff/stage/commit/push/pull/branch 基础能力 |
-| Harness Agent | ✅（上游） | iframe 中使用完整 Web UI；原生 transport 尚未完成 |
+| Harness Agent | ✅（上游） | iframe 中使用完整 Web UI；native Session controls 为早期 vertical slice，真实 provider/model review loop 尚未完成 |
 | `Cmd/Ctrl+K` | ⚠️ | 直接模型调用的初版，不等同于 Harness turn/审批/diff |
 | MCP / Rules / Skills | ⚠️ | 基础配置/入口；完整插件管理、恢复和市场未完成 |
 | 多 Agent 原生控制面 | ⏳ | 复用上游 subagent/Team，桌面投影和 provider negotiation 计划中 |

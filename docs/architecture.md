@@ -41,7 +41,7 @@ flowchart LR
 
 ### 2.2 当前 Agent surface
 
-`apps/workbench/src/AgentPanel.tsx` 当前用带 token 的 URL 加载 `<iframe>`。它是兼容和功能保真路径，不是已经完成的原生 `dsh-client` 嵌入，也不是 `webviewTag`。
+`apps/workbench/src/AgentPanel.tsx` 仍用带 token 的 URL 加载 `<iframe>`，它是兼容和功能保真路径，不是已经完成的原生 `dsh-client` 嵌入，也不是 `webviewTag`。Workspace sync 后，Main 还会为该 WebContents 建立一个 `AgentRuntime`：Renderer 通过 typed IPC 发送结构化 turn/context，Main 通过 authenticated `session/follow` 和 `session/prompt` 接入同一 Harness Session，并把 tool/approval/change/terminal events 回传。native controls 与 iframe 并行，iframe 仍是默认完整 UI。
 
 ```text
 Host ready URL
@@ -61,9 +61,12 @@ apps/shell/src/
 ├── main.ts                 # 单实例、开发实例、窗口注册、Host 启动、shutdown coordinator
 ├── windows.ts              # BrowserWindow 安全选项和 workbench 加载
 ├── menu.ts                 # 原生菜单 → menu:command
-├── ipc.ts                  # 唯一 ipcMain 注册入口、项目 watcher、能力 manifest
+├── ipc.ts                  # 唯一 ipcMain 注册入口、项目 watcher、能力 manifest、Agent runtime
 ├── host.ts                 # HostProcess 状态机、ready URL、owned/adopted 生命周期
-├── harness-api.ts          # Host HTTP RPC 和 iframe workspace/session seed
+├── harness-api.ts          # Host HTTP RPC、cookie auth、iframe workspace/session seed
+├── agent-runtime.ts        # per-WebContents AgentRuntime + Turn Controller owner
+├── agent/host-ipc-driver.ts # upstream Desktop Host lifecycle IPC + session port seam
+├── agent/harness-web-session-port.ts # authenticated Session prompt/follow WebSocket port
 ├── paths.ts                # Harness root、DSH_HOME、userData 和 profile 路径
 ├── fs-service.ts           # 文件读写、目录和原生对话框
 ├── git-service.ts          # git CLI 封装
@@ -76,7 +79,6 @@ apps/shell/src/
 ├── inline-edit.ts          # Cmd/Ctrl+K 的模型调用
 ├── updater.ts              # electron-updater 骨架
 ├── runtime-manifest.ts     # 读取/校验 source 或 packaged runtime manifest
-├── agent/host-ipc-driver.ts # upstream Desktop Host lifecycle IPC + session port seam
 └── preload.ts              # 白名单 API，不暴露通用 invoke
 
 apps/workbench/src/
@@ -97,6 +99,10 @@ apps/workbench/src/
 packages/shared/src/
 ├── protocol.ts             # 领域类型、IpcChannel、IpcEventMap
 ├── api.ts                  # DesktopApi 唯一类型
+├── agent-transport.ts      # Agent transport/turn DTO 和 unsupported error
+├── turn-controller.ts      # turn 状态机
+├── context-source.ts       # bounded structured context
+├── change-projection.ts    # 只读变更归因
 ├── capabilities.ts         # 版本化 capability manifest
 ├── runtime.ts              # RuntimeManifest schema
 └── index.ts                # package 导出
@@ -147,7 +153,7 @@ preload 不再暴露 `invoke(channel, ...args)`。Renderer 不能绕过 API 对�
 | 搜索 | files、content、progress、cancel | Main |
 | Git | status、diff、stage、commit、push、pull | Main + git CLI |
 | 终端 | acquire、write、resize、kill、data/exit | Main + PTY |
-| Agent/Host | host status/restart、workspace sync | Main + Harness Host |
+| Agent/Host | host status/restart、workspace sync、agent status/send/cancel/resume、agent events | Main + Harness Host |
 | 配置 | credentials、MCP、rules、inline edit | Main + Harness/platform |
 
 ## 5. 启动、运行和退出时序
@@ -169,7 +175,8 @@ sequenceDiagram
   M-->>W: host:changed(ready)
   W->>M: workspace.sync(project)
   M->>H: workspace/create + session/create
-  M-->>W: iframe seed / ready
+  M->>H: authenticated session/follow + native AgentRuntime
+  M-->>W: iframe seed / agent transport status
 ```
 
 实际顺序是：Main 先注册 IPC、打开窗口，再启动 Host；Host ready 通过事件广播。外部 `DHD_HARNESS_URL` 优先于本地 spawn。
@@ -314,13 +321,11 @@ flowchart TB
 
 ### 9.3 TransportDriver
 
-跨进程 DTO 和 Main owner interface 已落在 [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts)。当前 capability snapshot 会登记 `managed-iframe` / `external-loopback` descriptor，并明确 `sendTurn`、`cancel`、`resume`、subscription 和 change projection 尚未实现；选区注入是 `clipboard-fallback`。
+跨进程 DTO 和 Main owner interface 已落在 [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts)。默认 capability snapshot 继续登记 `managed-iframe` / `external-loopback` 兼容 surface；workspace sync 后，per-WebContents `AgentRuntime` 另外提供 `host-ipc` descriptor，并通过 `agent.status` 报告真实能力。
 
-`UpstreamHostIpcConnection` 已用 Node child IPC 对接上游 `dsh-desktop-host` 的 `ready` / `fatal` / `shutdown-complete` / `update-tasks` 事件；`HostIpcTransportDriver` 通过注入的 `AgentSessionPort` 接入 turn contract。当前默认 Session port 仍返回结构化 `unsupported`，不会把上游 Web IPC 误当成 turn API。
+`UpstreamHostIpcConnection` 已用 Node child IPC 对接上游 `dsh-desktop-host` 的 `ready` / `fatal` / `shutdown-complete` / `update-tasks` 事件；`HarnessWebSessionPort` 使用同一 Host 的 authenticated Remote API 接入 `session/prompt` / `session/follow`，并把 tool/approval/change/terminal events 交给 `AgentTurnController`。child IPC 本身没有 turn 消息，DHD 不把它误报为上游 turn protocol。
 
-`AgentTurnController` 纯状态机已先于真实 driver 实现落地，并由 contract fixture 覆盖 start、approval、cancel、resume、complete 和 dispose 顺序。
-
-目标 interface（driver 实现仍待 R2 垂直切片）：
+`AgentTurnController` 状态机由 contract fixture 和 `AgentRuntime` smoke 覆盖 start、approval、cancel、resume、complete 和 dispose 顺序。真实 provider/model turn、Host restart/reconnect 和 before/after diff 仍待 R2 后续切片。目标 interface：
 
 ```ts
 interface TransportDriver {
@@ -336,7 +341,7 @@ interface TransportDriver {
 
 实现顺序：现有 loopback/iframe → Host IPC bridge → 外部 ACP/CLI。每个实现都必须有相同 contract test，尤其是取消、重连、事件顺序和 dispose。
 
-Context source builder 位于 [`packages/shared/src/context-source.ts`](../packages/shared/src/context-source.ts)，当前 AgentPanel 已用它生成结构化 selection payload；Session log 记录仍由未来 TransportDriver 负责。
+Context source builder 位于 [`packages/shared/src/context-source.ts`](../packages/shared/src/context-source.ts)；native Session port 将 bounded canonical context 与用户文本一起提交为 Session user message，iframe postMessage/clipboard 仍是 fallback。
 
 ### 9.4 Change Projection
 
@@ -400,9 +405,9 @@ Desktop shell
 当前限制详见 [`support-matrix.md`](support-matrix.md)。优先级最高的架构动作：
 
 1. 为 Host、PTY、watcher、search、workspace sync 建行为测试。
-2. 在已落地的 Agent Transport contract 上实现 Turn Controller 和 adapter negotiation。
+2. 在已落地的 Agent Transport/Session vertical slice 上验证真实 provider/model turn、Host restart/reconnect 和审批恢复。
 3. 实现 per-window Workspace Generation 和开发实例隔离的自动化验证。
-4. 以 turn controller + change projection 替代手工 iframe 深度融合。
+4. 将 changed-path projection 扩展为 before/after diff、watcher 冲突和 review loop，逐步替代手工 iframe 深度融合。
 5. 在任何发行宣传前完成 runtime manifest、签名、原生安装和回滚证据。
 
 相关决策记录：[`0001`](adr/0001-runtime-boundary.md)、[`0002`](adr/0002-agent-transport.md)、[`0003`](adr/0003-capability-negotiation.md)、[`0004`](adr/0004-upstream-first-evaluation.md)、[`0005`](adr/0005-agent-transport-contract.md)。上游复用分析和 Spike 见 [`upstream-first-evaluation.md`](upstream-first-evaluation.md)。

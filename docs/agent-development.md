@@ -13,7 +13,7 @@
 5. [`docs/roadmap.md`](roadmap.md)：目标架构与阶段退出条件。
 6. [`packages/shared/src/protocol.ts`](../packages/shared/src/protocol.ts)：跨进程数据与通道真源。
 7. [`packages/shared/src/runtime.ts`](../packages/shared/src/runtime.ts) 和 [`docs/runtime-manifest.md`](runtime-manifest.md)：当前 runtime 和 bundled 依赖的身份契约。
-8. [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts) 和 [`packages/shared/src/change-projection.ts`](../packages/shared/src/change-projection.ts)：Agent transport、turn 和变更投影 contract。
+8. [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts)、[`apps/shell/src/agent/harness-web-session-port.ts`](../apps/shell/src/agent/harness-web-session-port.ts) 和 [`packages/shared/src/change-projection.ts`](../packages/shared/src/change-projection.ts)：Agent transport、真实 Session channel、turn 和变更投影 contract。
 9. 受影响目录的源码和测试；不要从 `harness/` 子模块内部开始改桌面代码。
 
 ## 2. Source-of-truth 优先级
@@ -80,7 +80,7 @@ pnpm dev
 
 | 层 | 可以做 | 不可以做 |
 |---|---|---|
-| `apps/shell` | 窗口、菜单、Host supervisor、PTY、fs/git/search、preload、平台 API | 执行 Agent 工具、写 Session log、在 Main 中挂载 Cordis |
+| `apps/shell` | 窗口、菜单、Host supervisor、PTY、fs/git/search、preload、平台 API、Main-owned transport lifecycle | 执行 Agent 工具、直接写 Session log、在 Main 中挂载 Cordis |
 | `apps/workbench` | 编辑器、文件树、终端视图、Git/搜索/设置、iframe Agent surface | 依赖 Node/Electron 私有对象、绕过 Host 权限 |
 | `packages/shared` | 可序列化类型、IPC channel、capability manifest、Desktop API contract | 放运行时副作用或平台实现 |
 | `packages/desktop-profile` | 计划中的 DSH overlay/资源 | 假设已经被 `host.ts` 加载；当前启动只附加 MCP overlay |
@@ -96,13 +96,14 @@ pnpm doctor:env
 pnpm dev
 pnpm smoke:workspace
 pnpm smoke:upstream-host
+pnpm smoke:native-turn
 pnpm typecheck
 pnpm test:contract
 pnpm build
 git diff --check
 ```
 
-当前外层仓库没有完整 `pnpm test` 或 Playwright suite；`pnpm test:contract` 验证 capability、IPC/preload 和上游 Desktop 静态兼容门。不要把“typecheck/build 通过”写成“测试通过”。新增测试或 E2E 后，应把真实命令写进对应文档和 CI。
+当前外层仓库没有完整 `pnpm test` 或 Playwright suite；`pnpm test:contract` 验证 capability、IPC/preload、Host IPC fixture、authenticated Session prompt/follow fixture 和上游 Desktop 静态兼容门。不要把“typecheck/build 通过”写成“真实 provider/model 测试通过”。新增测试或 E2E 后，应把真实命令写进对应文档和 CI。
 
 按改动选择检查：
 
@@ -114,7 +115,7 @@ git diff --check
 | 搜索/watcher | `pnpm typecheck`、`pnpm build` | 真实大仓库、rg 失败 fallback、取消和 fd 检查 |
 | UI 状态 | `pnpm typecheck`、`pnpm build` | 实际窗口中的打开、保存、切换、失败态 |
 | 打包配置 | `pnpm build` | 目标原生安装包 smoke；开发构建不能代替它 |
-| Harness pin | 先在 `harness/` 构建 | `pnpm smoke:workspace` 验证 workspace/session idempotency；再记录 Host 启动、session resume 和版本 |
+| Harness pin | 先在 `harness/` 构建 | `pnpm smoke:workspace` 验证 workspace/session idempotency，`pnpm smoke:native-turn` 验证真实 Harness loop + mock provider 的 native turn；再记录 Host 启动、session resume 和版本 |
 
 ## 6. 修改工作流
 

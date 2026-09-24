@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { PRODUCT_NAME, PROTOCOL } from '@dhd/shared'
 import { HostProcess } from './host.ts'
-import { getDesktopCapabilities, registerIpc, stopWatching } from './ipc.ts'
+import { getDesktopCapabilities, registerIpc, stopAgentRuntimes, stopWatching } from './ipc.ts'
 import { cancelAllSearches } from './search-service.ts'
 import { buildAppMenu } from './menu.ts'
 import { killAllPty } from './pty-service.ts'
@@ -46,7 +46,7 @@ async function disposeApplication(): Promise<void> {
   for (const win of [...windows]) {
     if (!win.isDestroyed()) win.destroy()
   }
-  await Promise.allSettled([searchCleanup, killAllPty(), host.stop()])
+  await Promise.allSettled([searchCleanup, killAllPty(), stopAgentRuntimes(), host.stop()])
 }
 
 app.setName(PRODUCT_NAME)

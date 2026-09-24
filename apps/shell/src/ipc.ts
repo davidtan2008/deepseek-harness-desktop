@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell as electronShell } from 'electron'
 import { createDesktopCapabilities } from '@dhd/shared'
-import type { AppSettings, McpServerConfig, PtyOptions, SearchPhase, WorkspaceSyncResult } from '@dhd/shared'
+import type { AgentContextItem, AgentTransportDescriptor, AgentTurnRequest, AppSettings, HostState, McpServerConfig, PtyOptions, SearchPhase, WorkspaceSyncResult } from '@dhd/shared'
+import { AgentRuntime, unavailableAgentTransport } from './agent-runtime.ts'
 import { hasApiKey, setApiKey, clearApiKey } from './credentials.ts'
 import { HarnessApi, seedHarnessSession } from './harness-api.ts'
 import * as fs from './fs-service.ts'
@@ -21,6 +22,87 @@ export interface IpcContext {
 }
 
 let watcher: ProjectWatcher | undefined
+const agentRuntimes = new Map<number, AgentRuntime>()
+const agentRuntimeDisposers = new Map<number, () => void>()
+
+function parseAgentTurnRequest(value: unknown): AgentTurnRequest {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('agent turn request must be an object')
+  const request = value as Record<string, unknown>
+  if (typeof request.turnId !== 'string' || request.turnId.length === 0 || request.turnId.length > 256) throw new Error('agent turn request requires a bounded turnId')
+  if (typeof request.text !== 'string' || Buffer.byteLength(request.text, 'utf8') > 1024 * 1024) throw new Error('agent turn request requires bounded text')
+  if (!Array.isArray(request.context) || request.context.length > 128) throw new Error('agent turn request requires bounded context items')
+  const context: AgentContextItem[] = request.context.map((item) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) throw new Error('agent context item must be an object')
+    const value = item as Record<string, unknown>
+    if (!['file', 'selection', 'open-tabs', 'git-diff', 'problems'].includes(String(value.kind))) throw new Error('agent context kind is invalid')
+    if (value.path !== undefined && typeof value.path !== 'string') throw new Error('agent context path is invalid')
+    if (value.text !== undefined && typeof value.text !== 'string') throw new Error('agent context text is invalid')
+    return {
+      kind: value.kind as AgentContextItem['kind'],
+      ...(value.path === undefined ? {} : { path: value.path }),
+      ...(value.text === undefined ? {} : { text: value.text }),
+    }
+  })
+  return { turnId: request.turnId, text: request.text, context }
+}
+
+function parseTurnId(value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 256) throw new Error('agent turn id is invalid')
+  return value
+}
+
+async function disposeAgentRuntime(sender: Electron.WebContents): Promise<void> {
+  const runtime = agentRuntimes.get(sender.id)
+  const dispose = agentRuntimeDisposers.get(sender.id)
+  agentRuntimes.delete(sender.id)
+  if (dispose !== undefined) {
+    agentRuntimeDisposers.delete(sender.id)
+    dispose()
+  }
+  if (runtime !== undefined) await runtime.dispose()
+}
+
+async function ensureAgentRuntime(
+  host: HostProcess,
+  sender: Electron.WebContents,
+  state: Extract<HostState, { status: 'ready' }>,
+  sessionId: string,
+): Promise<AgentTransportDescriptor> {
+  const current = agentRuntimes.get(sender.id)
+  if (current?.id === sessionId) return current.capabilities()
+  await disposeAgentRuntime(sender)
+  const runtime = new AgentRuntime(
+    host,
+    sessionId,
+    state.origin,
+    state.token,
+    (event) => {
+      if (!sender.isDestroyed()) sender.send('agent:event', event)
+    },
+  )
+  agentRuntimes.set(sender.id, runtime)
+  const onDestroyed = (): void => {
+    if (agentRuntimes.get(sender.id) !== runtime) return
+    agentRuntimes.delete(sender.id)
+    agentRuntimeDisposers.delete(sender.id)
+    void runtime.dispose()
+  }
+  const cleanup = (): void => { sender.off('destroyed', onDestroyed) }
+  agentRuntimeDisposers.set(sender.id, cleanup)
+  sender.once('destroyed', onDestroyed)
+  try {
+    return await runtime.connect()
+  } catch (error) {
+    if (agentRuntimes.get(sender.id) === runtime) {
+      agentRuntimes.delete(sender.id)
+      agentRuntimeDisposers.delete(sender.id)
+      cleanup()
+    }
+    await runtime.dispose().catch(() => undefined)
+    console.warn('[agent] native Session transport unavailable:', error)
+    return unavailableAgentTransport()
+  }
+}
 
 export function getDesktopCapabilities(host: HostProcess): ReturnType<typeof createDesktopCapabilities> {
   return createDesktopCapabilities({
@@ -35,6 +117,15 @@ export function getDesktopCapabilities(host: HostProcess): ReturnType<typeof cre
 export function stopWatching(): void {
   watcher?.close()
   watcher = undefined
+}
+
+export async function stopAgentRuntimes(): Promise<void> {
+  const runtimes = [...agentRuntimes.values()]
+  const cleanups = [...agentRuntimeDisposers.values()]
+  agentRuntimes.clear()
+  agentRuntimeDisposers.clear()
+  for (const cleanup of cleanups) cleanup()
+  await Promise.allSettled(runtimes.map((runtime) => runtime.dispose()))
 }
 
 export function registerIpc(ctx: IpcContext): void {
@@ -135,6 +226,22 @@ export function registerIpc(ctx: IpcContext): void {
 
   ipcMain.handle('host.status', () => ctx.host.getState())
   ipcMain.handle('host.restart', () => ctx.host.restart())
+  ipcMain.handle('agent.status', (e) => agentRuntimes.get(e.sender.id)?.capabilities() ?? unavailableAgentTransport())
+  ipcMain.handle('agent.send', async (e, request: unknown) => {
+    const runtime = agentRuntimes.get(e.sender.id)
+    if (runtime === undefined) throw new Error('native Agent Session is not connected')
+    return runtime.sendTurn(parseAgentTurnRequest(request))
+  })
+  ipcMain.handle('agent.cancel', async (e, turnId: unknown) => {
+    const runtime = agentRuntimes.get(e.sender.id)
+    if (runtime === undefined) throw new Error('native Agent Session is not connected')
+    await runtime.cancel(parseTurnId(turnId))
+  })
+  ipcMain.handle('agent.resume', async (e, turnId: unknown) => {
+    const runtime = agentRuntimes.get(e.sender.id)
+    if (runtime === undefined) throw new Error('native Agent Session is not connected')
+    return runtime.resume(parseTurnId(turnId))
+  })
 
   const pendingSeed = new WeakMap<Electron.WebContents, { origin: string; sessionId: string }>()
   ipcMain.handle('workspace.sync', async (e, projectPath: string): Promise<WorkspaceSyncResult | { error: string }> => {
@@ -160,7 +267,8 @@ export function registerIpc(ctx: IpcContext): void {
         }
         e.sender.on('did-frame-finish-load', onFrameLoad)
       }
-      return result
+      const agentTransport = await ensureAgentRuntime(ctx.host, e.sender, state, result.sessionId)
+      return { ...result, agentTransport }
     } catch (err) {
       console.error('[workspace.sync]', err)
       return { error: err instanceof Error ? err.message : String(err) }

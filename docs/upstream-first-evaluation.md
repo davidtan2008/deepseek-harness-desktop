@@ -37,10 +37,11 @@
 
 - `pnpm --dir harness --filter @deepseek-ai/dsh-desktop build`：通过；上游 Desktop 的 TypeScript、tsdown 和 welcome bundle 均成功生成。
 - `pnpm --dir harness --filter @deepseek-ai/dsh-desktop start`：补齐 Harness workspace 依赖并使用 `ELECTRON_MIRROR` 后，上游 Electron 启动并观察到 `dsh web: http://127.0.0.1:19387/?token=…` ready；通过 macOS app quit 触发 graceful shutdown，进程 exit 0 且无残留 Host。启动期间观察到 bounded HTTP 503 inventory/sync warning，未阻断 ready。
-- `pnpm smoke:upstream-host`：DHD `UpstreamHostIpcConnection` 直接接收上游 `dsh-desktop-host` 的 `ready`、`update-tasks` 和 `shutdown-complete` IPC，真实 child lifecycle smoke 通过。Host IPC 尚无 turn 消息，因此 `AgentSessionPort` 仍显式返回 `unsupported`。
+- `pnpm smoke:upstream-host`：DHD `UpstreamHostIpcConnection` 直接接收上游 `dsh-desktop-host` 的 `ready`、`update-tasks` 和 `shutdown-complete` IPC，真实 child lifecycle smoke 通过；同一 Host 的 authenticated `session/create` + `session/follow` WebSocket 也已打开。Host IPC 尚无 turn 消息，turn channel 使用上游既有 Remote API。
+- `pnpm test:contract`：本地 HTTP/WebSocket fixture 验证 `session/prompt`、structured context、tool/approval/change events、cancel 和 resume；真实 provider/model turn 尚未验证。
 - 当前只验证了 macOS arm64 的上游 build；上游 Host 的 Windows/Linux 行为仍未验证。
 
-因此当前决策仍是“保留 DHD iframe fallback，先完成 Session/workspace 和跨平台 spike”，而不是直接删除现有 adapter。启动和 graceful shutdown 已有 macOS arm64 证据，但 Session/workspace 行为和跨平台证据仍缺失。
+因此当前决策仍是“保留 DHD iframe fallback，先完成真实 provider turn、Session/workspace 和跨平台 spike”，而不是直接删除现有 adapter。Host lifecycle、Session follow 和本地 Session channel fixture 已有 macOS arm64/本地证据，但 provider/model、跨平台和 Host restart 行为仍缺失。
 
 ## 自动化兼容门
 

@@ -1,4 +1,5 @@
 import type { DesktopCapabilities } from './capabilities.js'
+import type { AgentTransportDescriptor, AgentTurnEvent } from './agent-transport.js'
 
 export type HostState =
   | { status: 'stopped' }
@@ -143,6 +144,7 @@ export interface WorkspaceSyncResult {
   workspaceId: string
   sessionId: string
   created: boolean
+  agentTransport?: AgentTransportDescriptor
 }
 
 export type SearchPhase = 'running' | 'done' | 'cancelled'
@@ -196,6 +198,10 @@ export type IpcChannel =
   | 'pty.kill'
   | 'host.status'
   | 'host.restart'
+  | 'agent.status'
+  | 'agent.send'
+  | 'agent.cancel'
+  | 'agent.resume'
   | 'workspace.sync'
   | 'credentials.has'
   | 'credentials.set'
@@ -217,6 +223,7 @@ export type IpcEventChannel =
   | 'settings:changed'
   | 'search:progress'
   | 'capabilities:changed'
+  | 'agent:event'
 
 export interface IpcEventMap {
   'host:changed': HostState
@@ -227,6 +234,7 @@ export interface IpcEventMap {
   'settings:changed': AppSettings
   'search:progress': SearchProgressEvent
   'capabilities:changed': DesktopCapabilities
+  'agent:event': AgentTurnEvent
 }
 
 export const DEFAULT_WINDOW: WindowState = {

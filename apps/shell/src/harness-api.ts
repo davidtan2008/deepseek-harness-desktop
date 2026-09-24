@@ -2,6 +2,12 @@ import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import type { WorkspaceSyncResult } from '@dhd/shared'
 
+/** Authenticated loopback connection details shared by HTTP and WebSocket clients. */
+export interface HarnessConnection {
+  origin: string
+  cookie: string
+}
+
 /**
  * Minimal client for the harness host's Typert-over-HTTP RPC surface:
  * POST /api/<namespace>/<method> with a ClientRequest envelope, authenticated
@@ -22,7 +28,7 @@ export class HarnessApi {
         redirect: 'manual',
         signal: AbortSignal.timeout(5000),
       })
-      const cookies = res.headers.getSetCookie?.() ?? []
+      const cookies = res.headers.getSetCookie?.() ?? [res.headers.get('set-cookie')].filter((value): value is string => value !== null)
       const pair = cookies
         .map((raw) => raw.split(';', 1)[0] ?? '')
         .find((kv) => kv.includes('='))
@@ -33,6 +39,12 @@ export class HarnessApi {
       throw err
     })
     return this.auth
+  }
+
+  /** Return the authenticated origin and cookie for a loopback WebSocket client. */
+  async authenticated(): Promise<HarnessConnection> {
+    await this.ensureAuth()
+    return { origin: this.origin, cookie: this.cookie ?? '' }
   }
 
   /** Invoke one Remote method; throws with the harness error code on failure. */
@@ -69,6 +81,20 @@ export class HarnessApi {
       throw new Error(`harness rpc ${endpoint}: ${body.result.error.code}: ${body.result.error.message}`)
     }
     return body.result.value
+  }
+
+  /** Fetch one authenticated JSON route outside the Typert unary RPC surface. */
+  async getJson<T>(path: string, query: Record<string, string> = {}): Promise<T> {
+    if (!path.startsWith('/')) throw new Error(`harness route must be absolute: ${path}`)
+    await this.ensureAuth()
+    const url = new URL(path, this.origin)
+    for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
+    const response = await fetch(url, {
+      headers: { cookie: this.cookie ?? '' },
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!response.ok) throw new Error(`harness route ${path}: HTTP ${response.status}`)
+    return await response.json() as T
   }
 
   /**

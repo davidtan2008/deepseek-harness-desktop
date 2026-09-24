@@ -12,11 +12,11 @@
 
 它拒绝绝对路径、反斜杠和 `..` 路径，并默认限制上下文为 128 KiB；超限或非法路径会抛出 `ContextBundleError`，不会静默截断后继续发送。
 
-`AgentPanel` 的“发送选区”已经使用该 builder，把结构化 selection 放入 postMessage，同时保留 clipboard fallback。Harness Session log 的自动记录仍待 Host transport 接入，因此当前 capability 仍标记 `contextInjection: clipboard-fallback`。
+`AgentPanel` 的“发送选区”已经使用该 builder；native `HarnessWebSessionPort` 将 canonical context 作为独立 text part 和用户文本一起提交到 `session/prompt`，因此进入 Harness Session user message。postMessage/clipboard 仍是 iframe fallback；capability 由实际 transport snapshot 决定。
 
 ## 后续接入
 
 1. 为 open tabs、Problems 和 Git diff 增加 producer；
-2. 在真实 `sendTurn` 前把 canonical payload 写入 Harness Session event；
-3. 将 context digest、来源路径和 turn ID 投影到 Trajectory；
-4. 对敏感文件、过大上下文和用户未确认的来源显示明确状态。
+2. 将 context digest、来源路径和 turn ID 投影到 Trajectory；
+3. 对敏感文件、过大上下文和用户未确认的来源显示明确状态；
+4. 在真实 provider/model smoke 中验证 Session log 重放和审批前后的 context 一致性。

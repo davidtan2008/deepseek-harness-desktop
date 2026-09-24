@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@dhd/shared": "workspace:*",
+    "ws": "^8.21.3",
     "yaml": "^2.8.1"
   },
   "optionalDependencies": {
@@ -33,6 +34,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
+    "@types/ws": "^8.18.1",
     "electron": "^36.9.2",
     "electron-builder": "^26.0.12",
     "electron-updater": "^6.6.2",

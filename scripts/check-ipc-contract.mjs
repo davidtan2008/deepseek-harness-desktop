@@ -13,8 +13,11 @@ const [protocol, api, preload, ipc, env, windows] = await Promise.all([
 
 assert.match(protocol, /'app\.capabilities'/)
 assert.match(protocol, /'capabilities:changed'/)
+assert.match(protocol, /'agent:event'/)
 assert.match(api, /capabilities: \(\) => Promise<DesktopCapabilities>/)
+assert.match(api, /agent: \{/)
 assert.match(preload, /capabilities: \(\) => invoke\('app\.capabilities'\)/)
+assert.match(preload, /agent: \{/)
 assert.match(ipc, /ipcMain\.handle\('app\.capabilities'/)
 const channelBlock = protocol.slice(protocol.indexOf('export type IpcChannel'), protocol.indexOf('export type IpcEventChannel'))
 for (const match of channelBlock.matchAll(/'([^']+)'/g)) {
@@ -23,6 +26,7 @@ for (const match of channelBlock.matchAll(/'([^']+)'/g)) {
 }
 assert.doesNotMatch(preload, /\n\s+invoke:\s*\(/)
 assert.match(preload, /const eventChannels = new Set<keyof IpcEventMap>/)
+assert.match(preload, /'agent:event'/)
 assert.doesNotMatch(api, /\n\s+invoke\s*:/)
 assert.match(env, /import type \{ DesktopApi \} from '@dhd\/shared'/)
 assert.match(windows, /sandbox: true/)

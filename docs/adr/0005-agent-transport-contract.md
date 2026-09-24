@@ -1,6 +1,6 @@
 # ADR 0005：先定义 Agent Transport contract，再实现 turn loop
 
-- 状态：Accepted（contract 已实现，driver 实现从 R2 垂直切片开始）
+- 状态：Accepted（contract、Host lifecycle 和 authenticated Session vertical slice 已实现）
 - 日期：2026-09-24
 - 相关代码：`packages/shared/src/agent-transport.ts`、`packages/shared/src/capabilities.ts`、`docs/roadmap.md`
 
@@ -19,7 +19,7 @@ DHD 当前把 Harness Web UI 放在 tokenized iframe 中。这个 surface 能显
 - capability snapshot 必须声明当前 transport 是否支持每个操作；
 - 不支持的能力返回结构化 `unsupported`，不静默降级。
 
-当前实现只登记 `managed-iframe` / `external-loopback` descriptor：`sendTurn`、`cancel`、`resume` 和 change projection 均为 `false`，选区注入明确标为 `clipboard-fallback`。纯 `AgentTurnController` 状态机已通过 contract fixture 验证；`UpstreamHostIpcConnection` 已接入真实 upstream Host lifecycle IPC，但默认 `AgentSessionPort` 仍返回结构化 `unsupported`，尚未接入真实 turn/session channel。这比把“有一个 iframe”标成完整 Agent API 更诚实。
+当前 iframe 仍登记为 `managed-iframe` / `external-loopback` 兼容 surface；workspace sync 后，Main-owned `AgentRuntime` 使用 `HostIpcTransportDriver` 和 authenticated `HarnessWebSessionPort` 建立 `host-ipc` descriptor。`session/prompt` 将 bounded structured context 写入 Session user message，`session/follow` 映射 tool/approval/change/terminal events；真实 provider/model turn、审批决策、Host restart/reconnect 和 before/after diff 仍未完成。`UpstreamHostIpcConnection` 直接接收真实 `dsh-desktop-host` child IPC，但 child IPC 本身不承载 turn 消息。
 
 ## 边界
 

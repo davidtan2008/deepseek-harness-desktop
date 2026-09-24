@@ -24,6 +24,7 @@ const eventChannels = new Set<keyof IpcEventMap>([
   'settings:changed',
   'search:progress',
   'capabilities:changed',
+  'agent:event',
 ])
 
 const api: DesktopApi = {
@@ -94,6 +95,12 @@ const api: DesktopApi = {
   host: {
     status: () => invoke('host.status'),
     restart: () => invoke('host.restart'),
+  },
+  agent: {
+    status: () => invoke('agent.status'),
+    send: (request) => invoke('agent.send', request),
+    cancel: (turnId) => invoke('agent.cancel', turnId),
+    resume: (turnId) => invoke('agent.resume', turnId),
   },
   workspace: {
     sync: (projectPath: string) =>

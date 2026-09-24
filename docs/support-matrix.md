@@ -10,7 +10,7 @@
 |---|---|---|
 | 独立社区项目 | 已验证 | 不是 DeepSeek 官方 Desktop，也没有官方背书；见 README |
 | 源码开发模式 | 已验证 | `pnpm install` → `pnpm dev`；需要本机 Node 22.19+ 和可运行的 Harness checkout |
-| 上游 Desktop build spike | 部分验证 | macOS arm64 build、启动 ready、graceful quit、`pnpm upstream:check` 和 `pnpm smoke:upstream-host` 通过；Host turn IPC/Session port、跨平台行为仍未验证 |
+| 上游 Desktop build spike | 部分验证 | macOS arm64 build、启动 ready、graceful quit、`pnpm upstream:check`、`smoke:upstream-host` 和 `smoke:native-turn`（真实 Harness loop + mock provider）通过；外部 provider、跨平台行为仍未验证 |
 | 外部 Host 复用 | 已实现未自动化 | `DHD_HARNESS_URL` 解析后不由桌面终止；workspace sync 需要 token |
 | Workspace/session sync | 已验证（macOS arm64） | `pnpm smoke:workspace` 通过真实 Host RPC 验证 `workspace/create` 幂等、session 创建/复用和无残留退出；DHD Renderer 注入仍依赖 iframe 私有 storage seam |
 | Runtime manifest | 已验证 | `pnpm runtime:manifest` / `packaged` 生成，包含 DHD build-output digest；`doctor:env` 和 `app.capabilities.runtime` 可读取 |
@@ -42,12 +42,12 @@
 |---|---|---|
 | Harness Web UI | 已验证 | `AgentPanel` 通过带 token 的 URL 加载 `<iframe>` |
 | 工作区 → Harness workspace | 已验证（macOS arm64） | `pnpm smoke:workspace` 调用 `/api/workspace/create`，验证幂等、session 创建/复用和无残留退出；Renderer 注入仍依赖 iframe storage seam |
-| Agent Transport contract | contract 已定义 | `AgentTransportDescriptor`/`AgentTransportDriver` 已进入 shared contract；当前 iframe descriptor 明确 send/cancel/resume/projection unsupported |
-| Turn Controller 状态机 | contract 已验证 | `pnpm test:contract` 覆盖 start/running/approval/cancel/resume/complete/dispose 事件顺序；尚未接入真实 Host |
+| Agent Transport contract | contract 已定义 | `AgentTransportDescriptor`/`AgentTransportDriver`、`Turn Controller` 和 Main-owned runtime 已进入 shared/IPC contract；当前 iframe 仍明确标记为兼容 surface |
+| Turn Controller 状态机 | contract 已验证 | `pnpm test:contract` 覆盖 start/running/approval/cancel/resume/complete/dispose 事件顺序；`AgentRuntime` 已接入 Main IPC |
 | Change Projection 纯函数 | contract 已验证 | 覆盖 Agent/user/formatter、冲突、revert、排序和路径安全；尚未接入 watcher/Session/UI |
-| 选区发送 | 部分验证 | `buildContextBundle` 已生成结构化 selection payload；剪贴板 fallback 可用，真实 Session log 和 `dhd-insert` 接收端未在当前 pin 中确认 |
-| Turn 原生投影 | 计划中 | 需要 TransportDriver、turn controller、Session event projection |
-| Agent diff attribution | 计划中 | 需要把 tool events、watcher 和 Git 状态合并成 turn 变更集 |
+| 选区发送 | 已实现未自动化 | `buildContextBundle` 生成 bounded structured selection payload；native AgentRuntime 将其写入 Session user message，剪贴板/iframe 仍作为 fallback |
+| Turn 原生投影 | 部分验证 | `AgentRuntime` 接入 `session/prompt`/`session/follow`，tool/approval/change/terminal events 已通过本地 fixture；`smoke:native-turn` 用真实 Harness loop + mock provider 验证 prompt/context/Session log，外部 provider 和 Host restart 仍待验证 |
+| Agent diff attribution | 部分验证 | `workspace/changes` changed paths 已投影；before/after diff、watcher 冲突和 Review UI 仍待接入 |
 | Trajectory/审批/工具卡 | 上游能力 | 在 iframe 的 Harness Web UI 中可用，DHD 尚未原生重做 |
 | Session resume | 上游能力 | 依赖 Harness Session log；Host 重启后的桌面投影仍需加强 |
 
@@ -95,11 +95,11 @@
 |---|---|---|
 | `pnpm install --frozen-lockfile --offline` | 已验证 | 基线修复后执行 |
 | `pnpm typecheck` | 已验证 | 本轮 capability contract 改动后再次通过 |
-| `pnpm build` | 待本轮文档/代码完成后复跑 | 证明构建，不证明运行时 |
-| `git diff --check` | 待本轮完成后执行 | 文档和代码共同检查 |
+| `pnpm build` | 已验证 | 证明构建，不证明运行时 |
+| `git diff --check` | 已验证 | 本轮代码和文档检查 |
 | 真实 Electron 搜索/搜索 fallback | 已验证 | 手工验证记录在 CHANGELOG |
 | 真实 Host/PTY/退出 | 已验证 | macOS 本机验证；不等于三平台 CI |
-| 外层 contract checks | 已验证 | `pnpm test:contract` 覆盖 capability manifest、IPC/preload 和上游 Desktop 静态兼容门；完整 unit/E2E 仍未实现 |
+| 外层 contract checks | 已验证 | `pnpm test:contract` 覆盖 capability manifest、IPC/preload、Host IPC fixture、authenticated Session prompt/follow fixture 和上游 Desktop 静态兼容门；完整 provider/browser E2E 仍未实现 |
 
 ## 8. 维护规则
 

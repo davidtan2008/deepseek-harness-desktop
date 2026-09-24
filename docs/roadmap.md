@@ -72,10 +72,10 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 |---|---|---|
 | R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
 | R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物、packaged fail-closed、上游 Desktop 启动/退出、workspace smoke 和 upstream Host IPC lifecycle 已验证；跨平台、升级回滚和完整 runtime closure 仍待验证 |
-| R2 Agent 原生闭环 | 🚧 进行中 | 已定义 `AgentTransportDescriptor`/`AgentTransportDriver` contract，验证 Turn Controller 状态机，并实现 upstream Host IPC lifecycle driver；当前 Session port 仍诚实返回 unsupported，下一步接入真实 turn/session channel |
+| R2 Agent 原生闭环 | 🚧 进行中 | 已定义 `AgentTransportDescriptor`/`AgentTransportDriver` contract，验证 Turn Controller 状态机，实现 upstream Host IPC lifecycle、authenticated Session prompt/follow、structured context、tool/approval/change events 和 Main-owned AgentRuntime；`smoke:native-turn` 已用真实 Harness loop + mock provider 验证 Session log，外部 provider、diff review、Host restart/reconnect 和跨平台验证仍待完成 |
 | R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
 
-本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明；R1 workspace/session smoke 已通过。R2 已进入 contract-first 阶段；正式 release 仍必须满足 R1 全部退出门。
+本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明；R1 workspace/session smoke 已通过。R2 已从 contract-first 进入第一个真实 Session vertical slice：workspace sync 后建立 authenticated `session/follow`，native AgentRuntime 可发送结构化 turn 并接收 tool/approval/change/terminal events；`smoke:native-turn` 已用真实 Harness loop + mock provider 验证 prompt/context 和 Session log，外部 provider 和 review loop 仍未完成。正式 release 仍必须满足 R1 全部退出门。
 
 ## 4. 阶段路线图
 
@@ -137,15 +137,15 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 
 1. **TransportDriver**
    - 定义 `connect`、`sendTurn`、`cancel`、`resume`、`subscribe`、capability negotiation。
-   - 第一实现继续支持 loopback/iframe；随后增加 Host IPC bridge；外部 Host 不能被误标为自有进程。
+   - loopback/iframe 继续作为完整 UI fallback；Host IPC lifecycle bridge 和 authenticated Session port 已接入；外部 Host 不能被误标为自有进程。
 2. **Turn Controller**
    - 将发送、运行、工具调用、审批、结束、失败和取消建模为显式状态。
    - Host 重启后从 Session log 恢复，不把 UI loading 状态当作完成。
 3. **Context Sources**
-   - 当前文件、选区、打开 Tab、Git diff、Problems 作为结构化 context source；基础 builder 和边界检查已实现，真实 Session log 仍待接入。
+   - 当前文件、选区、打开 Tab、Git diff、Problems 作为结构化 context source；基础 builder、边界检查和真实 Session user-message 编码已实现。
    - 模型可见内容必须进入 Session log；复制到剪贴板只能作为明确 fallback。
 4. **Change Projection**
-   - 结合 Session/tool events、文件 watcher 和 Git 状态生成 turn 变更集；纯 projection contract 已实现，真实 producer/UI 尚未接入。
+   - 结合 Session/tool events、文件 watcher 和 Git 状态生成 turn 变更集；Session `workspace/changes` 的 changed-path producer 和 native event 已接入，before/after diff、watcher 冲突和 Review UI 尚未接入。
    - 展示 before/after diff、来源 turn、冲突和 reload 建议；不直接覆盖用户修改。
 5. **Review loop**
    - 选中变更 → 打开 diff → 运行命令/测试 → 接受、恢复或继续让 Agent 修复。
@@ -323,7 +323,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 ## 10. 下一轮执行清单
 
 1. 将当前 DHD build-output digest inventory 扩展为与上游 `desktop-runtime.json` 对齐的完整 inventory/hash，并确定 Node、Harness、pnpm、rg 的闭包打包方案。
-2. 为 upstream Host IPC 接入真实 Session/turn channel：验证结构化 turn/context/approval/change events 和 Session log 记录；Host lifecycle 已由 `smoke:upstream-host` 覆盖。
-3. 保持 `pnpm smoke:workspace` 的真实 Host/session 回归，并补齐 Host 生命周期、PTY 和搜索 fallback 的最小行为测试矩阵；`pnpm upstream:check` 保持进入 contract gate。
-4. 只有 R1 的安装/恢复证据达到退出门后，才在 R2 实现“Host IPC bridge + TransportDriver + turn controller”，并写 ADR。
+2. 在当前 authenticated Session port 上完成外部 provider/model turn smoke，验证 Session log、审批决策、取消/恢复和 Host restart/reconnect；`smoke:native-turn` 已覆盖真实 Harness loop + mock provider，`smoke:upstream-host` 已覆盖真实 Host lifecycle + Session follow。
+3. 将 `workspace/changes` changed paths 接到 before/after diff、watcher 冲突和 Review loop；保持 `pnpm smoke:workspace` 的真实 Host/session 回归，并补齐 Host 生命周期、PTY 和搜索 fallback 的最小行为测试矩阵。
+4. 只有 R1 的安装/恢复证据达到退出门后，才把 native Agent surface 设为默认；在此之前继续保留 iframe fallback 和版本化 capability 状态。
 5. 在有可安装、可签名、可回滚的包之前，README 继续使用 `source preview`，不添加虚假的下载 badge。

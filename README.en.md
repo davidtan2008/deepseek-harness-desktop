@@ -34,16 +34,17 @@ This repository is a **0.1.0 source preview**, not a signed production distribut
 | Implemented and manually checked | Host lifecycle, file tree/editor, search with fallback, PTY with fallback, basic Git, workspace sync, coordinated shutdown |
 | Implemented without outer automated regression | Monaco tabs, command palette, MCP/Rules entry points, inline edit, layout persistence |
 | Upstream capability | Harness presets, Trajectory, tool cards, Skills, MCP, Sessions, subagents/fork/workflow/experimental Agent Teams inside the iframe |
-| Planned | Native turn projection, per-turn diff, provider/agent roster, worktree isolation, bundled runtime, signed release/update channel |
+| Early native vertical slice | Main-owned Session runtime, structured context/prompts, and tool/approval/change events after workspace sync; real provider/model review is not complete |
+| Planned | Per-turn before/after diff, provider/agent roster, worktree isolation, bundled runtime, signed release/update channel |
 
 Important current limits:
 
-- The Agent surface is a tokenized Harness Web UI **iframe**, not a natively embedded `dsh-client`.
-- Selection handoff currently falls back to the clipboard; automatic composer injection is not guaranteed.
-- The Changes panel is repository-level Git diff, not an Agent-turn diff.
+- The full default Agent surface remains a tokenized Harness Web UI **iframe**; after workspace sync DHD attempts to attach native controls to the same Host/Session, but this is not a completed native `dsh-client` embedding.
+- Selection handoff uses structured Session context when the native channel is available; iframe/clipboard handoff remains an explicit fallback.
+- The Changes panel is still repository-level Git diff; native `change-projection` currently exposes changed paths only.
 - Desktop `defaultModel`, `defaultPreset`, and `sandboxMode` are not automatically Host-effective settings.
 - The current package does not bundle a complete Harness/Node runtime; a packaged Host fails closed when the runtime manifest is incomplete instead of silently falling back to system Node/npx.
-- The outer repository has no complete unit/E2E suite; `pnpm test:contract` covers capability, IPC/preload, and the static upstream Desktop compatibility gate; typecheck/build are not runtime tests.
+- The outer repository has no complete unit/E2E suite; `pnpm test:contract` covers capability, IPC/preload, Host IPC/Session fixtures, and the static upstream Desktop compatibility gate; typecheck/build are not real provider/model tests.
 
 See the version-bound [support matrix](docs/support-matrix.md) before making product claims.
 
@@ -82,10 +83,12 @@ flowchart LR
   UI --> Git[Git panel]
   UI --> Agent[Agent iframe\nHarness Web UI]
   Host --> Runtime[Session / Tools / Skills / MCP / Sandbox]
+  Main --> AgentRuntime[Native Session transport]
+  AgentRuntime --> Host
   Main --> Platform[FS / watcher / credentials / updater]
 ```
 
-The Host is an external Node process. Main supervises it but does not execute Agent tools or write Session logs. The Renderer has no Node integration and uses only the typed preload API. The exact lifecycle and private Host compatibility seams are documented in [docs/architecture.md](docs/architecture.md).
+The Host is an external Node process. Main supervises it but does not execute Agent tools or directly write Session logs; the native runtime sends prompts and reads events through the Host Remote API. The Renderer has no Node integration and uses only the typed preload API. The exact lifecycle and private Host compatibility seams are documented in [docs/architecture.md](docs/architecture.md).
 
 ## Environment variables
 
@@ -123,6 +126,7 @@ The Host is an external Node process. Main supervises it but does not execute Ag
 pnpm docs:check
 pnpm upstream:check
 pnpm typecheck
+pnpm smoke:native-turn
 pnpm test:contract
 pnpm build
 git diff --check

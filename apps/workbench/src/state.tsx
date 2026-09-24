@@ -12,6 +12,8 @@ import {
   DEFAULT_SETTINGS,
   languageFromPath,
   type ActivityId,
+  type AgentTransportDescriptor,
+  type AgentTurnEvent,
   type AppSettings,
   type DesktopCapabilities,
   type HostState,
@@ -34,6 +36,8 @@ interface AppModel {
   projectPath?: string
   host: HostState
   capabilities: DesktopCapabilities | null
+  agentStatus: AgentTransportDescriptor | null
+  agentEvents: AgentTurnEvent[]
   platform: string
   hasKey: boolean
   activity: ActivityId
@@ -71,6 +75,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [projectPath, setProjectPath] = useState<string | undefined>(projectFromUrl())
   const [host, setHost] = useState<HostState>({ status: 'starting' })
   const [capabilities, setCapabilities] = useState<DesktopCapabilities | null>(null)
+  const [agentStatus, setAgentStatus] = useState<AgentTransportDescriptor | null>(null)
+  const [agentEvents, setAgentEvents] = useState<AgentTurnEvent[]>([])
   const [platform, setPlatform] = useState('darwin')
   const [hasKey, setHasKey] = useState(false)
   const [activity, setActivity] = useState<ActivityId>('explorer')
@@ -86,6 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let unsubMenu: (() => void) | undefined
     let unsubSettings: (() => void) | undefined
     let unsubCapabilities: (() => void) | undefined
+    let unsubAgent: (() => void) | undefined
     // StrictMode double-invokes this effect in dev; without the flag the
     // first (already-cleaned-up) run would subscribe again and leak handlers.
     let cancelled = false
@@ -102,15 +109,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         capabilitiesChanged = true
         setCapabilities(next)
       })
+      unsubAgent = api.on('agent:event', (event) => {
+        setAgentEvents((current) => [...current.slice(-99), event])
+      })
       unsubMenu = api.on('menu:command', (command) => {
         window.dispatchEvent(new CustomEvent('dhd-menu', { detail: command }))
       })
-      const [loaded, plat, key, hostState, capabilityManifest] = await Promise.all([
+      const [loaded, plat, key, hostState, capabilityManifest, initialAgentStatus] = await Promise.all([
         api.app.settings.get(),
         api.app.platform(),
         api.credentials.has(),
         api.host.status(),
         api.app.capabilities(),
+        api.agent.status(),
       ])
       if (cancelled) return
       setSettingsState(loaded)
@@ -120,6 +131,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setHasKey(key)
       if (!hostChanged) setHost(hostState)
       if (!capabilitiesChanged) setCapabilities(capabilityManifest)
+      setAgentStatus(initialAgentStatus)
       document.documentElement.dataset.theme = loaded.theme === 'system'
         ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
         : loaded.theme
@@ -134,6 +146,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsubMenu?.()
       unsubSettings?.()
       unsubCapabilities?.()
+      unsubAgent?.()
     }
   }, [])
 
@@ -161,10 +174,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const key = `${host.url}::${projectPath}`
     if (syncedRef.current.has(key)) return
     syncedRef.current.add(key)
+    setAgentEvents([])
+    setAgentStatus(null)
     void dhd().workspace.sync(projectPath).then((result) => {
       if ('error' in result) {
         syncedRef.current.delete(key)
         console.warn('[workspace.sync]', result.error)
+      } else if (result.agentTransport !== undefined) {
+        setAgentStatus(result.agentTransport)
       }
     }).catch((err) => {
       syncedRef.current.delete(key)
@@ -232,6 +249,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     projectPath,
     host,
     capabilities,
+    agentStatus,
+    agentEvents,
     platform,
     hasKey,
     activity,
@@ -255,7 +274,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPalette,
     setInlineOpen,
     setHasKey,
-  }), [ready, settings, projectPath, host, capabilities, platform, hasKey, activity, panel, tabs, activePath, selection, palette, inlineOpen, setSettings, openProject, openFile, closeTab, updateText, save, saveAll])
+  }), [ready, settings, projectPath, host, capabilities, agentStatus, agentEvents, platform, hasKey, activity, panel, tabs, activePath, selection, palette, inlineOpen, setSettings, openProject, openFile, closeTab, updateText, save, saveAll])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

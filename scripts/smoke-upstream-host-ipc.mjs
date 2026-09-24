@@ -4,6 +4,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { UpstreamHostIpcConnection } from '../apps/shell/dist/host-ipc-driver.mjs'
+import { HarnessApi } from '../apps/shell/dist/harness-api.mjs'
+import { HarnessWebSessionPort } from '../apps/shell/dist/harness-web-session-port.mjs'
 
 const root = process.cwd()
 const harness = resolve(root, 'harness')
@@ -16,6 +18,7 @@ for (const [label, path] of [['desktop-host', entry], ['development project', ru
 }
 
 const dshHome = await mkdtemp(join(tmpdir(), 'dhd-upstream-ipc-home-'))
+let sessionPort
 const connection = new UpstreamHostIpcConnection({
   node: process.execPath,
   entry,
@@ -29,8 +32,16 @@ try {
   const ready = await connection.start()
   assert.equal(new URL(ready.url).hostname, '127.0.0.1')
   assert.equal(await connection.updateTasks('inspect'), false)
-  console.log('Upstream Host IPC smoke passed (ready + update-tasks + lifecycle).')
+  const launch = new URL(ready.url)
+  const api = new HarnessApi(launch.origin, launch.searchParams.get('token') ?? '')
+  const created = await api.call('session', 'create', { cwd: process.cwd() })
+  assert.equal(typeof created.sessionId, 'string')
+  sessionPort = new HarnessWebSessionPort({ api, sessionId: created.sessionId })
+  await sessionPort.connect()
+  assert.equal(sessionPort.capabilities.contextInjection, 'structured')
+  console.log('Upstream Host IPC smoke passed (ready + update-tasks + Session follow + lifecycle).')
 } finally {
+  await sessionPort?.dispose()
   await connection.stop()
   await rm(dshHome, { recursive: true, force: true })
 }

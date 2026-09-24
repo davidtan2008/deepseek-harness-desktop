@@ -3,12 +3,14 @@ import { join } from 'node:path'
 import {
   AGENT_TRANSPORT_CONTRACT_VERSION,
   AgentTransportUnsupportedError,
-  type AgentTransportCapabilities,
   type AgentTransportDescriptor,
   type AgentTransportDriver,
   type AgentTurnEvent,
   type AgentTurnRequest,
 } from '@dhd/shared'
+import type { AgentSessionPort } from './agent-session-port.ts'
+
+export type { AgentSessionPort } from './agent-session-port.ts'
 
 export type UpstreamHostEvent =
   | { type: 'ready'; url: string; injections?: unknown }
@@ -16,6 +18,12 @@ export type UpstreamHostEvent =
   | { type: 'shutdown-complete' }
   | { type: 'platform-session'; session: unknown }
   | { type: 'update-tasks'; requestId: number; active: boolean; error?: string }
+
+export interface AgentHostConnection {
+  readonly status: 'disconnected' | 'connecting' | 'ready' | 'error'
+  start(): Promise<unknown>
+  stop(): Promise<void>
+}
 
 export interface UpstreamHostIpcOptions {
   node: string
@@ -32,16 +40,6 @@ export interface UpstreamHostIpcOptions {
 export interface UpstreamHostReady {
   url: string
   injections?: unknown
-}
-
-export interface AgentSessionPort {
-  readonly capabilities: Pick<AgentTransportCapabilities, 'sendTurn' | 'cancel' | 'resume' | 'subscribe' | 'contextInjection' | 'changeProjection'>
-  connect?(): Promise<void>
-  sendTurn(request: AgentTurnRequest): Promise<{ turnId: string }>
-  cancel(turnId: string): Promise<void>
-  resume(turnId: string): Promise<{ turnId: string }>
-  subscribe(listener: (event: AgentTurnEvent) => void): () => void
-  dispose(): Promise<void>
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -98,7 +96,7 @@ function signalChild(child: ChildProcess, signal: NodeJS.Signals): void {
 }
 
 /** Owns one upstream Desktop Host child and its structured IPC lifecycle. */
-export class UpstreamHostIpcConnection {
+export class UpstreamHostIpcConnection implements AgentHostConnection {
   private child: ChildProcess | undefined
   private ready: Promise<UpstreamHostReady> | undefined
   private resolveReady: ((value: UpstreamHostReady) => void) | undefined
@@ -277,8 +275,9 @@ export class HostIpcTransportDriver implements AgentTransportDriver {
   private connected = false
 
   constructor(
-    private readonly host: UpstreamHostIpcConnection,
+    private readonly host: AgentHostConnection,
     private readonly sessions: AgentSessionPort,
+    private readonly managed = true,
   ) {}
 
   capabilities(): AgentTransportDescriptor {
@@ -286,7 +285,7 @@ export class HostIpcTransportDriver implements AgentTransportDriver {
       contractVersion: AGENT_TRANSPORT_CONTRACT_VERSION,
       id: 'host-ipc',
       status: this.host.status,
-      managed: true,
+      managed: this.managed,
       capabilities: { ...this.sessions.capabilities },
     }
   }
@@ -314,7 +313,6 @@ export class HostIpcTransportDriver implements AgentTransportDriver {
   }
 
   subscribe(listener: (event: AgentTurnEvent) => void): () => void {
-    this.assertConnected()
     return this.sessions.subscribe(listener)
   }
 
