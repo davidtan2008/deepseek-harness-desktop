@@ -81,7 +81,8 @@ packaged test runner 使用 closure 内的固定 pnpm，并以 `--pm-on-fail=ign
 - schema v3、生成器、doctor、capability 集成和 DHD build-output digest inventory 已完成；source mode 的 closure 为空，packaged mode 要求实际 closure descriptor；
 - `runtime:prepare` 可在当前 macOS arm64 checkout 上生成 dsh deploy/peer closure、Node、pnpm 和目标平台 ripgrep；`smoke:runtime-closure` 与 `smoke:packaged-host` 已通过，生成目录不提交 Git；
 - packaged Host 启动前会校验 manifest、closure 入口和版本；缺失或不匹配时 fail closed，避免静默回退到 `npx`/系统 Node。`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 只用于本地诊断；
-- 仍需完成最终 app resources 的 post-pack 校验、签名、公证、跨平台安装和升级回滚证据；
+- `check:packaged-runtime` 对 macOS electron-builder 产生的 code-signing mutations 做 `codesign --verify --deep --strict` 校验，并允许 `_CodeSignature` 元数据；closure inventory 排除仅用于保留空目录的 `.gitkeep` 占位文件；
+- 仍需完成最终 app resources 的正式签名后 inventory 重签、公证、跨平台安装和升级回滚证据；
 - manifest 不是安全沙箱，也不是插件授权。
 
 ## 变更规则

@@ -126,6 +126,7 @@ function walkFiles(path, logicalPath, entries) {
   const stat = lstatSync(path)
   if (stat.isSymbolicLink()) throw new Error(`runtime closure contains a symlink: ${logicalPath}`)
   if (stat.isFile()) {
+    if (logicalPath === '.gitkeep' || logicalPath.endsWith('/.gitkeep')) return
     const body = readFileSync(path)
     entries.push({
       path: logicalPath,

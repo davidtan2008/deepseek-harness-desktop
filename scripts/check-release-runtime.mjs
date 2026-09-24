@@ -19,10 +19,15 @@ const closureRoot = resourcesRoot === undefined
   : join(resourcesRoot, 'runtime')
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
 const blockers = []
+const warnings = []
 const validManifest = isRuntimeManifest(manifest)
 
 function fail(message) {
   blockers.push(message)
+}
+
+function warn(message) {
+  warnings.push(message)
 }
 
 function inventory(path, logicalPath, entries, inventoryPlatform = process.platform) {
@@ -30,6 +35,7 @@ function inventory(path, logicalPath, entries, inventoryPlatform = process.platf
   const stat = lstatSync(path)
   if (stat.isSymbolicLink()) throw new Error(`symlink at ${logicalPath}`)
   if (stat.isFile()) {
+    if (logicalPath === '.gitkeep' || logicalPath.endsWith('/.gitkeep')) return
     const body = readFileSync(path)
     entries.push({
       path: logicalPath,
@@ -49,6 +55,43 @@ function inventory(path, logicalPath, entries, inventoryPlatform = process.platf
 function safeRelative(path) {
   return typeof path === 'string' && path.length > 0 && !path.startsWith('/') && !path.includes('\\')
     && !path.split('/').some((part) => part === '' || part === '.' || part === '..')
+}
+
+function isCodeSignaturePath(path) {
+  return path.includes('/_CodeSignature/')
+}
+
+function verifySignedMutation(path) {
+  if (process.platform !== 'darwin') return false
+  try {
+    execFileSync('codesign', ['--verify', '--deep', '--strict', path], { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function comparePackedInventory(expectedFiles, actualFiles, allowSigning) {
+  const expected = new Map(expectedFiles.map((file) => [file.path, file]))
+  const actual = new Map(actualFiles.map((file) => [file.path, file]))
+  for (const [path, file] of expected) {
+    const observed = actual.get(path)
+    if (observed === undefined) {
+      fail(`packaged runtime file is missing: ${path}`)
+      continue
+    }
+    if (JSON.stringify(file) === JSON.stringify(observed)) continue
+    if (allowSigning && verifySignedMutation(join(closureRoot, path))) {
+      warn(`accepted code-signing mutation: ${path}`)
+      continue
+    }
+    fail(`packaged runtime file differs from closure inventory: ${path}`)
+  }
+  for (const path of actual.keys()) {
+    if (!expected.has(path) && !(allowSigning && isCodeSignaturePath(path))) {
+      fail(`packaged runtime contains an unexpected file: ${path}`)
+    }
+  }
 }
 
 function runVersion(command, args) {
@@ -94,7 +137,7 @@ if (!validManifest || manifest.closure === null) {
     fail(`closure inventory failed: ${error instanceof Error ? error.message : String(error)}`)
   }
   actualFiles.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
-  if (JSON.stringify(actualFiles) !== JSON.stringify(expectedFiles)) fail('runtime closure file inventory does not match closure.json')
+  comparePackedInventory(expectedFiles, actualFiles, resourcesRoot !== undefined && closure.platform === 'darwin')
   for (const path of [closure.harness.entry, closure.harness.packageJson, closure.node.path, closure.pnpm.path, closure.ripgrep.path]) {
     if (!safeRelative(path) || !existsSync(join(closureRoot, path)) || !lstatSync(join(closureRoot, path)).isFile()) fail(`closure file is missing or unsafe: ${path}`)
   }
@@ -125,5 +168,8 @@ if (blockers.length > 0) {
   console.error('Release runtime gate failed:')
   for (const blocker of blockers) console.error(`- ${blocker}`)
   process.exit(1)
+}
+if (warnings.length > 0) {
+  console.warn(`Release runtime gate accepted ${warnings.length} code-signing mutations.`)
 }
 console.log('Release runtime gate passed.')
