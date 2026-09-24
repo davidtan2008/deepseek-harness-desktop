@@ -37,7 +37,7 @@
     "smoke:workspace": "node scripts/smoke-workspace.mjs",
     "build": "pnpm --filter @dhd/shared build && pnpm --filter @dhd/workbench build && pnpm --filter @dhd/shell build && pnpm runtime:manifest",
     "docs:check": "node scripts/check-docs.mjs",
-    "test:contract": "pnpm runtime:manifest && pnpm --filter @dhd/shared build && node scripts/check-capabilities.mjs && node scripts/check-ipc-contract.mjs && node scripts/check-upstream-desktop.mjs",
+    "test:contract": "pnpm runtime:manifest && pnpm --filter @dhd/shared build && node scripts/check-capabilities.mjs && node scripts/check-turn-controller.mjs && node scripts/check-change-projection.mjs && node scripts/check-ipc-contract.mjs && node scripts/check-upstream-desktop.mjs",
     "typecheck": "pnpm --filter @dhd/shared build && pnpm -r typecheck",
     "pack": "pnpm build && pnpm --filter @dhd/shell pack:app",
     "pack:mac": "pnpm build && pnpm --filter @dhd/shell pack:mac",

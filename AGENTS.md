@@ -22,6 +22,9 @@ When sources disagree, fix the stale source or document the discrepancy. Do not 
 - `packages/shared/src/api.ts`
 - `packages/shared/src/capabilities.ts`
 - `packages/shared/src/runtime.ts`
+- `packages/shared/src/agent-transport.ts`
+- `packages/shared/src/turn-controller.ts`
+- `packages/shared/src/change-projection.ts`
 - `docs/runtime-manifest.md`
 - the affected source and nearest tests
 

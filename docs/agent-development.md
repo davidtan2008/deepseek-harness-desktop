@@ -13,7 +13,8 @@
 5. [`docs/roadmap.md`](roadmap.md)：目标架构与阶段退出条件。
 6. [`packages/shared/src/protocol.ts`](../packages/shared/src/protocol.ts)：跨进程数据与通道真源。
 7. [`packages/shared/src/runtime.ts`](../packages/shared/src/runtime.ts) 和 [`docs/runtime-manifest.md`](runtime-manifest.md)：当前 runtime 和 bundled 依赖的身份契约。
-8. 受影响目录的源码和测试；不要从 `harness/` 子模块内部开始改桌面代码。
+8. [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts) 和 [`packages/shared/src/change-projection.ts`](../packages/shared/src/change-projection.ts)：Agent transport、turn 和变更投影 contract。
+9. 受影响目录的源码和测试；不要从 `harness/` 子模块内部开始改桌面代码。
 
 ## 2. Source-of-truth 优先级
 

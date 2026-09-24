@@ -41,7 +41,10 @@
 | 能力 | 状态 | 说明 |
 |---|---|---|
 | Harness Web UI | 已验证 | `AgentPanel` 通过带 token 的 URL 加载 `<iframe>` |
-| 工作区 → Harness workspace | 已实现未自动化 | `workspace.sync` 调用 `/api/workspace/create`，必要时创建 session 并注入选中态 |
+| 工作区 → Harness workspace | 已验证（macOS arm64） | `pnpm smoke:workspace` 调用 `/api/workspace/create`，验证幂等、session 创建/复用和无残留退出；Renderer 注入仍依赖 iframe storage seam |
+| Agent Transport contract | contract 已定义 | `AgentTransportDescriptor`/`AgentTransportDriver` 已进入 shared contract；当前 iframe descriptor 明确 send/cancel/resume/projection unsupported |
+| Turn Controller 状态机 | contract 已验证 | `pnpm test:contract` 覆盖 start/running/approval/cancel/resume/complete/dispose 事件顺序；尚未接入真实 Host |
+| Change Projection 纯函数 | contract 已验证 | 覆盖 Agent/user/formatter、冲突、revert、排序和路径安全；尚未接入 watcher/Session/UI |
 | 选区发送 | 部分验证 | 剪贴板 fallback 可用；`dhd-insert` postMessage 接收端未在当前 pin 中确认 |
 | Turn 原生投影 | 计划中 | 需要 TransportDriver、turn controller、Session event projection |
 | Agent diff attribution | 计划中 | 需要把 tool events、watcher 和 Git 状态合并成 turn 变更集 |

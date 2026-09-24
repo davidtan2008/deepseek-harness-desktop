@@ -1,7 +1,8 @@
+import { AGENT_TRANSPORT_CONTRACT_VERSION, type AgentTransportDescriptor, type AgentTransportStatus } from './agent-transport.js'
 import type { HostState } from './protocol.js'
 import type { RuntimeManifest } from './runtime.js'
 
-export const DESKTOP_CONTRACT_VERSION = 1 as const
+export const DESKTOP_CONTRACT_VERSION = 2 as const
 
 export type AgentSurface = 'managed-iframe' | 'external-loopback'
 export type CapabilityState = 'available' | 'degraded' | 'unavailable'
@@ -29,6 +30,7 @@ export interface DesktopCapabilities {
   appVersion: string
   runtime: RuntimeManifest | null
   surface: AgentSurface
+  agentTransport: AgentTransportDescriptor
   host: {
     status: HostState['status']
     managed: boolean
@@ -40,6 +42,33 @@ function hostCapabilityState(status: HostState['status']): CapabilityState {
   if (status === 'ready') return 'available'
   if (status === 'starting') return 'degraded'
   return 'unavailable'
+}
+
+function transportStatus(status: HostState['status']): AgentTransportStatus {
+  if (status === 'ready') return 'ready'
+  if (status === 'starting') return 'connecting'
+  if (status === 'error') return 'error'
+  return 'disconnected'
+}
+
+function currentTransport(input: {
+  externalHost: boolean
+  host: HostState
+}): AgentTransportDescriptor {
+  return {
+    contractVersion: AGENT_TRANSPORT_CONTRACT_VERSION,
+    id: input.externalHost ? 'external-loopback' : 'managed-iframe',
+    status: transportStatus(input.host.status),
+    managed: !input.externalHost,
+    capabilities: {
+      sendTurn: false,
+      cancel: false,
+      resume: false,
+      subscribe: false,
+      contextInjection: 'clipboard-fallback',
+      changeProjection: false,
+    },
+  }
 }
 
 export function createDesktopCapabilities(input: {
@@ -55,6 +84,7 @@ export function createDesktopCapabilities(input: {
     appVersion: input.appVersion,
     runtime: input.runtime ?? null,
     surface: input.externalHost ? 'external-loopback' : 'managed-iframe',
+    agentTransport: currentTransport(input),
     host: {
       status: input.host.status,
       managed: !input.externalHost,

@@ -72,10 +72,10 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 |---|---|---|
 | R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
 | R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物、packaged fail-closed、上游 Desktop 启动 ready 和 graceful shutdown 已验证；Session/workspace、跨平台和 runtime closure 仍待验证 |
-| R2 Agent 原生闭环 | ⏳ 未开始 | 先完成 R1 的 runtime/Host contract，再实现 TransportDriver 和 turn controller |
+| R2 Agent 原生闭环 | 🚧 进行中 | 已定义 `AgentTransportDescriptor`/`AgentTransportDriver` contract，并用 `pnpm test:contract` 验证 Turn Controller 状态机；当前 iframe descriptor 诚实标记 send/cancel/resume/projection unsupported；下一步接入 upstream Host IPC adapter |
 | R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
 
-本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明。正式 release 仍必须满足 R1 全部退出门。
+本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明。R2 已进入 contract-first 阶段；正式 release 仍必须满足 R1 全部退出门。
 
 ## 4. 阶段路线图
 
@@ -145,7 +145,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
    - 当前文件、选区、打开 Tab、Git diff、Problems 作为结构化 context source。
    - 模型可见内容必须进入 Session log；复制到剪贴板只能作为明确 fallback。
 4. **Change Projection**
-   - 结合 Session/tool events、文件 watcher 和 Git 状态生成 turn 变更集。
+   - 结合 Session/tool events、文件 watcher 和 Git 状态生成 turn 变更集；纯 projection contract 已实现，真实 producer/UI 尚未接入。
    - 展示 before/after diff、来源 turn、冲突和 reload 建议；不直接覆盖用户修改。
 5. **Review loop**
    - 选中变更 → 打开 diff → 运行命令/测试 → 接受、恢复或继续让 Agent 修复。

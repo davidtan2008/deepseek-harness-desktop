@@ -204,7 +204,7 @@ export function Workbench() {
         </span>
         <span title="Desktop capability contract for adapters and extensions">
           {app.capabilities
-            ? `adapter v${app.capabilities.contractVersion} · ${app.capabilities.surface} · ${app.capabilities.runtime?.mode ?? 'runtime unknown'}`
+            ? `adapter v${app.capabilities.contractVersion} · ${app.capabilities.surface} · ${app.capabilities.agentTransport.id} · ${app.capabilities.runtime?.mode ?? 'runtime unknown'}`
             : 'adapter contract'}
         </span>
         <span>

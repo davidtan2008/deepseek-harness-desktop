@@ -12,6 +12,8 @@
 - **R1 runtime manifest 基础**：新增 `RuntimeManifest` schema、source/packaged 生成命令、doctor 校验、`app.capabilities.runtime` 集成和 `electron-builder` 资源声明；manifest schema 升至 v2，并记录 DHD build-output 的排序 digest inventory；完整 Harness/Node/pnpm/ripgrep 尚未 bundled。
 - **上游 Desktop 兼容门**：新增 `pnpm upstream:check`，在 contract 测试中固定检查 Host IPC protocol、generation cleanup、runtime hash、Profile recovery 和 `runProfile` seam 的存在性。
 - **上游 Desktop 启动/退出 spike**：在 macOS arm64 补齐 Harness workspace 依赖后观察到 Electron 和 `dsh web` authenticated ready URL；通过 macOS app quit 验证 graceful shutdown、exit 0 和无残留 Host。启动期间有 bounded HTTP 503 inventory warning。
+- **Agent Transport contract**：新增 `AgentTransportDescriptor`/`AgentTransportDriver`、纯 `AgentTurnController` 和 R2 ADR 0005；Desktop capability contract 升至 v2，当前 iframe transport 明确声明 turn/cancel/resume/projection 尚未实现，选区仅支持 clipboard fallback。
+- **Change Projection contract**：新增只读 `projectChanges()` 纯函数和冲突/revert/路径安全 fixture；尚未接入真实 watcher、Session/tool event 或 Review UI。
 - **Workspace/session smoke**：新增 `pnpm smoke:workspace`，通过真实 Host RPC 验证 `workspace/create` 幂等、session 创建/复用、token/cookie 认证和无残留退出。
 - **Packaged runtime fail-closed**：packaged Host 启动前校验 runtime manifest；缺失或不完整时拒绝静默回退到 `npx`/系统 Node，`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 仅作为本地诊断逃生开关。
 - macOS arm64 的 unpacked/完整 electron-builder 打包已验证，`runtime-manifest.json` 已进入 App Resources；本机未配置 notarization，因此仍不宣称正式发行。

@@ -30,10 +30,13 @@ assert.equal(generated.inventory.scope, 'desktop-build')
 assert.equal(Number.isSafeInteger(generated.inventory.fileCount), true)
 
 const stopped = createDesktopCapabilities({ ...base, host: { status: 'stopped' } })
+assert.equal(stopped.contractVersion, 2)
 assert.equal(stopped.host.status, 'stopped')
 assert.equal(stopped.features.agent.state, 'unavailable')
 assert.equal(stopped.surface, 'managed-iframe')
 assert.equal(stopped.runtime?.mode, 'source')
+assert.equal(stopped.agentTransport.id, 'managed-iframe')
+assert.equal(stopped.agentTransport.capabilities.sendTurn, false)
 
 const starting = createDesktopCapabilities({ ...base, host: { status: 'starting' } })
 assert.equal(starting.features.agent.state, 'degraded')
@@ -52,6 +55,7 @@ const external = createDesktopCapabilities({
   host: { status: 'ready', url: 'http://127.0.0.1:1234/?token=secret', origin: 'http://127.0.0.1:1234', token: 'secret' },
 })
 assert.equal(external.surface, 'external-loopback')
+assert.equal(external.agentTransport.id, 'external-loopback')
 assert.equal(external.host.managed, false)
 
 const packaged = createDesktopCapabilities({ ...base, packaged: true, host: { status: 'ready', url: 'http://127.0.0.1:1/?token=x', origin: 'http://127.0.0.1:1', token: 'x' } })

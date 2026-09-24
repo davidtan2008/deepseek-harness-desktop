@@ -313,16 +313,20 @@ flowchart TB
 
 ### 9.3 TransportDriver
 
-目标 interface（概念，不是当前已实现 API）：
+跨进程 DTO 和 Main owner interface 已落在 [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts)。当前 capability snapshot 会登记 `managed-iframe` / `external-loopback` descriptor，并明确 `sendTurn`、`cancel`、`resume`、subscription 和 change projection 尚未实现；选区注入是 `clipboard-fallback`。
+
+`AgentTurnController` 纯状态机已先于真实 driver 实现落地，并由 contract fixture 覆盖 start、approval、cancel、resume、complete 和 dispose 顺序。
+
+目标 interface（driver 实现仍待 R2 垂直切片）：
 
 ```ts
 interface TransportDriver {
-  connect(request: ConnectRequest): Promise<Connection>
-  sendTurn(input: TurnInput): Promise<TurnHandle>
-  cancel(turnId: string, reason?: string): Promise<void>
-  resume(sessionId: string): Promise<SessionView>
-  subscribe(listener: (event: AgentEvent) => void): () => void
-  capabilities(): CapabilityManifest
+  capabilities(): AgentTransportDescriptor
+  connect(): Promise<AgentTransportDescriptor>
+  sendTurn(request: AgentTurnRequest): Promise<{ turnId: string }>
+  cancel(turnId: string): Promise<void>
+  resume(turnId: string): Promise<{ turnId: string }>
+  subscribe(listener: (event: AgentTurnEvent) => void): () => void
   dispose(): Promise<void>
 }
 ```
@@ -341,7 +345,7 @@ TurnChangeSet { turnId, path, before, after, source, status }
 Review UI / test command / apply-or-revert decision
 ```
 
-Projection 是只读派生视图；它不能悄悄覆盖用户 buffer。冲突、reload、外部写和未知来源必须显式显示。
+Projection 是只读派生视图；它不能悄悄覆盖用户 buffer。冲突、reload、外部写和未知来源必须显式显示。当前纯投影实现和测试见 [`change-projection.md`](change-projection.md)。
 
 ## 10. 扩展和插件模型
 
@@ -391,9 +395,9 @@ Desktop shell
 当前限制详见 [`support-matrix.md`](support-matrix.md)。优先级最高的架构动作：
 
 1. 为 Host、PTY、watcher、search、workspace sync 建行为测试。
-2. 把 capability manifest 从描述性 API 扩展为 adapter negotiation。
+2. 在已落地的 Agent Transport contract 上实现 Turn Controller 和 adapter negotiation。
 3. 实现 per-window Workspace Generation 和开发实例隔离的自动化验证。
 4. 以 turn controller + change projection 替代手工 iframe 深度融合。
 5. 在任何发行宣传前完成 runtime manifest、签名、原生安装和回滚证据。
 
-相关决策记录：[`0001`](adr/0001-runtime-boundary.md)、[`0002`](adr/0002-agent-transport.md)、[`0003`](adr/0003-capability-negotiation.md)、[`0004`](adr/0004-upstream-first-evaluation.md)。上游复用分析和 Spike 见 [`upstream-first-evaluation.md`](upstream-first-evaluation.md)。
+相关决策记录：[`0001`](adr/0001-runtime-boundary.md)、[`0002`](adr/0002-agent-transport.md)、[`0003`](adr/0003-capability-negotiation.md)、[`0004`](adr/0004-upstream-first-evaluation.md)、[`0005`](adr/0005-agent-transport-contract.md)。上游复用分析和 Spike 见 [`upstream-first-evaluation.md`](upstream-first-evaluation.md)。

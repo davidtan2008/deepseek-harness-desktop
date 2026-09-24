@@ -9,6 +9,8 @@
 - [docs/market-research.md](docs/market-research.md): official philosophy, paper interpretation, competitor matrix, positioning decisions.
 - [docs/architecture.md](docs/architecture.md): as-built processes, contracts, lifecycle, target seams.
 - [docs/runtime-manifest.md](docs/runtime-manifest.md): generated runtime identity and bundled-dependency contract.
+- [docs/adr/0005-agent-transport-contract.md](docs/adr/0005-agent-transport-contract.md): Agent transport/turn contract and migration gate.
+- [docs/change-projection.md](docs/change-projection.md): read-only turn change projection and conflict rules.
 - [docs/upstream-first-evaluation.md](docs/upstream-first-evaluation.md): upstream Desktop Host reuse spike and migration criteria.
 - [docs/roadmap.md](docs/roadmap.md): outcome-based phases and exit gates.
 - [docs/agent-development.md](docs/agent-development.md): workflow for AI coding agents and parallel worktrees.
