@@ -1,4 +1,4 @@
-export const RUNTIME_MANIFEST_SCHEMA_VERSION = 1 as const
+export const RUNTIME_MANIFEST_SCHEMA_VERSION = 2 as const
 
 export type RuntimeMode = 'source' | 'packaged'
 
@@ -14,6 +14,7 @@ export function isRuntimeManifest(value: unknown): value is RuntimeManifest {
   const pnpm = record(root?.pnpm)
   const platform = record(root?.platform)
   const ripgrep = record(root?.ripgrep)
+  const inventory = record(root?.inventory)
   const bundled = record(root?.bundled)
   return root?.schemaVersion === RUNTIME_MANIFEST_SCHEMA_VERSION
     && (root.mode === 'source' || root.mode === 'packaged')
@@ -30,10 +31,24 @@ export function isRuntimeManifest(value: unknown): value is RuntimeManifest {
     && typeof platform?.arch === 'string'
     && typeof ripgrep?.available === 'boolean'
     && (ripgrep?.version === null || typeof ripgrep?.version === 'string')
+    && inventory?.scope === 'desktop-build'
+    && typeof inventory?.complete === 'boolean'
+    && typeof inventory?.fileCount === 'number'
+    && Number.isSafeInteger(inventory.fileCount)
+    && inventory.fileCount >= 0
+    && (inventory.digest === null || (typeof inventory.digest === 'string' && /^[a-f0-9]{64}$/u.test(inventory.digest)))
+    && (inventory.complete ? inventory.fileCount > 0 && inventory.digest !== null : inventory.digest === null)
     && typeof bundled?.harness === 'boolean'
     && typeof bundled?.node === 'boolean'
     && typeof bundled?.pnpm === 'boolean'
     && typeof bundled?.ripgrep === 'boolean'
+}
+
+export interface RuntimeInventory {
+  scope: 'desktop-build'
+  complete: boolean
+  fileCount: number
+  digest: string | null
 }
 
 export interface RuntimeManifest {
@@ -64,6 +79,7 @@ export interface RuntimeManifest {
     available: boolean
     version: string | null
   }
+  inventory: RuntimeInventory
   bundled: {
     harness: boolean
     node: boolean

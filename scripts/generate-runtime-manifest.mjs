@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,6 +29,44 @@ function packageJson(path) {
   }
 }
 
+function collectInventory(path, logicalPath, entries) {
+  if (!existsSync(path)) return false
+  const stat = lstatSync(path)
+  if (stat.isSymbolicLink()) return false
+  if (stat.isFile()) {
+    const body = readFileSync(path)
+    entries.push({
+      path: logicalPath,
+      bytes: body.byteLength,
+      sha256: createHash('sha256').update(body).digest('hex'),
+    })
+    return true
+  }
+  if (!stat.isDirectory()) return false
+  let complete = true
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    complete = collectInventory(join(path, entry.name), `${logicalPath}/${entry.name}`, entries) && complete
+  }
+  return complete
+}
+
+function desktopBuildInventory() {
+  const entries = []
+  let complete = true
+  for (const [path, logicalPath] of [
+    [join(root, 'apps/shell/dist'), 'shell'],
+    [join(root, 'apps/workbench/dist'), 'workbench'],
+    [join(root, 'packages/desktop-profile/cordis.patch.yml'), 'desktop-profile/cordis.patch.yml'],
+  ]) {
+    complete = collectInventory(path, logicalPath, entries) && complete
+  }
+  entries.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0)
+  const digest = complete && entries.length > 0
+    ? createHash('sha256').update(entries.map((entry) => `${entry.path}\0${entry.bytes}\0${entry.sha256}`).join('\n')).digest('hex')
+    : null
+  return { scope: 'desktop-build', complete, fileCount: entries.length, digest }
+}
+
 const desktopPackage = packageJson(join(root, 'package.json'))
 const harnessPackage = packageJson(join(root, 'harness/package.json'))
 const pnpmVersion = command('pnpm', ['--version'])
@@ -37,7 +76,7 @@ const rgVersion = command(process.env.RIPGREP_PATH || 'rg', ['--version'])?.spli
 const bundled = { harness: false, node: false, pnpm: false, ripgrep: false }
 
 const manifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   generatedAt: new Date().toISOString(),
   mode,
   desktop: {
@@ -64,6 +103,7 @@ const manifest = {
     available: Boolean(rgVersion),
     version: rgVersion,
   },
+  inventory: desktopBuildInventory(),
   bundled,
 }
 

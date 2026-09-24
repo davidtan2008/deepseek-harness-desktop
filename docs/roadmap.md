@@ -71,7 +71,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 | 阶段 | 状态 | 当前证据 / 下一步 |
 |---|---|---|
 | R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
-| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物和 packaged fail-closed smoke 已验证；上游 Desktop build 和自动兼容门已通过、启动前受本地 optional runtime 缺失阻塞；下一步是完成 upstream-first 启动 spike、runtime closure 和安装后验证 |
+| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物、packaged fail-closed、上游 Desktop 启动 ready 和 graceful shutdown 已验证；Session/workspace、跨平台和 runtime closure 仍待验证 |
 | R2 Agent 原生闭环 | ⏳ 未开始 | 先完成 R1 的 runtime/Host contract，再实现 TransportDriver 和 turn controller |
 | R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
 
@@ -106,7 +106,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 **范围**：
 
 1. **Runtime manifest**
-   - 记录 Desktop version、Harness commit/version、Node、pnpm、平台/架构、原生依赖和文件 hash。
+   - 记录 Desktop version、Harness commit/version、Node、pnpm、平台/架构、原生依赖和 DHD build-output digest；完整 runtime 逐文件 inventory 仍待实现。
    - 运行时版本成为 Host 启动、更新和兼容检查的唯一输入。
    - `pnpm release:check` 是正式发行的 fail-closed gate；当前应明确失败而不是假装已可发行。
    - 先评估复用当前 pin 的上游 `apps/desktop`/`desktop-host` 能力，避免在外层重新实现同一套 loader、profile 和更新闭包；具体分析和 Spike 任务见 [`upstream-first-evaluation.md`](upstream-first-evaluation.md)，结论记录在 [`ADR 0004`](adr/0004-upstream-first-evaluation.md)。
@@ -322,8 +322,8 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 
 ## 10. 下一轮执行清单
 
-1. 在 runtime manifest 中加入与上游 `desktop-runtime.json` 对齐的 inventory/hash，并确定 Node、Harness、pnpm、rg 的闭包打包方案。
-2. 完成 upstream Desktop 启动 smoke：验证结构化 Host IPC、Profile/runtime preflight 和 shutdown；更新 [`upstream-first-evaluation.md`](upstream-first-evaluation.md) 与 ADR 0004。
+1. 将当前 DHD build-output digest inventory 扩展为与上游 `desktop-runtime.json` 对齐的完整 inventory/hash，并确定 Node、Harness、pnpm、rg 的闭包打包方案。
+2. 完成 upstream Desktop Session/workspace smoke：验证结构化 Host IPC、Profile/runtime preflight 和真实工作区切换；更新 [`upstream-first-evaluation.md`](upstream-first-evaluation.md) 与 ADR 0004。
 3. 为 Host 生命周期、workspace sync、PTY 和搜索 fallback 建最小行为测试矩阵；`pnpm upstream:check` 保持进入 contract gate。
 4. 只有 R1 的安装/恢复证据达到退出门后，才在 R2 实现“Host IPC bridge + TransportDriver + turn controller”，并写 ADR。
 5. 在有可安装、可签名、可回滚的包之前，README 继续使用 `source preview`，不添加虚假的下载 badge。

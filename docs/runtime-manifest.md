@@ -15,11 +15,11 @@
 - capability manifest 能向 UI/未来 adapter 暴露当前运行模式；
 - manifest 不包含 API key、token、绝对用户路径或 profile 内容。
 
-## Schema v1
+## Schema v2
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "ISO-8601",
   "mode": "source | packaged",
   "desktop": {
@@ -36,6 +36,12 @@
   "pnpm": { "version": "..." },
   "platform": { "name": "darwin", "arch": "arm64" },
   "ripgrep": { "available": true, "version": "..." },
+  "inventory": {
+    "scope": "desktop-build",
+    "complete": true,
+    "fileCount": 191,
+    "digest": "sha256..."
+  },
   "bundled": {
     "harness": false,
     "node": false,
@@ -44,6 +50,10 @@
   }
 }
 ```
+
+Schema v2 增加了 `inventory`；旧的 v1 manifest 会被拒绝，必须重新生成。
+
+`inventory` 是 DHD 自有 build output 的聚合摘要：生成器对 shell、workbench 和 desktop profile 文件计算排序后的 SHA-256 digest，但不在 manifest 中嵌入完整文件列表。它不是完整 Harness/Node runtime inventory；后者仍由上游 `desktop-runtime.json` 和发行闭包负责。
 
 类型定义位于 [`packages/shared/src/runtime.ts`](../packages/shared/src/runtime.ts)。Main 侧通过 [`apps/shell/src/runtime-manifest.ts`](../apps/shell/src/runtime-manifest.ts) 做 schema 校验；损坏或缺失的 manifest 不会被当作可信运行时，而会让 capability 返回 `runtime: null` 并保留诊断日志。
 
@@ -60,9 +70,9 @@ pnpm doctor:env                # 检查并报告 manifest
 
 ## 当前状态
 
-- schema、生成器、doctor、capability 集成已完成；macOS arm64 的 packaged App Resources 已验证包含 manifest；
+- schema、生成器、doctor、capability 集成和 DHD build-output digest inventory 已完成；macOS arm64 的 packaged App Resources 已验证包含 manifest；
 - packaged Host 启动前会校验 manifest；当前未 bundled 的包会 fail closed，避免静默回退到 `npx`/系统 Node。`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 只用于本地诊断；
-- 下一阶段实现真正的 runtime closure、hash/inventory、签名和安装后 smoke；
+- 下一阶段实现完整 Harness/Node/pnpm/rg runtime closure、逐文件 inventory、签名和安装后 smoke；
 - manifest 不是安全沙箱，也不是插件授权。
 
 ## 变更规则

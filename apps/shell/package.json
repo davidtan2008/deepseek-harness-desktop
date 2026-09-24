@@ -17,7 +17,7 @@
   "scripts": {
     "build": "node ./scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "dev": "node ./scripts/build.mjs && node ./scripts/wait-and-launch.mjs",
+    "dev": "node ./scripts/build.mjs && node ../../scripts/generate-runtime-manifest.mjs source && node ./scripts/wait-and-launch.mjs",
     "start": "electron ./dist/main.js",
     "pack:app": "node ../../scripts/generate-runtime-manifest.mjs packaged && electron-builder --config ../../electron-builder.yml",
     "pack:mac": "node ../../scripts/generate-runtime-manifest.mjs packaged && electron-builder --mac --config ../../electron-builder.yml",

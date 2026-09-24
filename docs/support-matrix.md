@@ -10,9 +10,9 @@
 |---|---|---|
 | 独立社区项目 | 已验证 | 不是 DeepSeek 官方 Desktop，也没有官方背书；见 README |
 | 源码开发模式 | 已验证 | `pnpm install` → `pnpm dev`；需要本机 Node 22.19+ 和可运行的 Harness checkout |
-| 上游 Desktop build spike | 部分验证 | macOS arm64 `pnpm --dir harness --filter @deepseek-ai/dsh-desktop build` 通过；`pnpm upstream:check` 通过；启动 smoke 受本地 optional Claude SDK runtime 缺失阻塞 |
+| 上游 Desktop build spike | 部分验证 | macOS arm64 build、启动 ready、graceful quit 和 `pnpm upstream:check` 通过；启动期间有 bounded HTTP 503 warning，Session/workspace 和其他平台仍未验证 |
 | 外部 Host 复用 | 已实现未自动化 | `DHD_HARNESS_URL` 解析后不由桌面终止；workspace sync 需要 token |
-| Runtime manifest | 已验证 | `pnpm runtime:manifest` / `packaged` 生成，`doctor:env` 和 `app.capabilities.runtime` 可读取 |
+| Runtime manifest | 已验证 | `pnpm runtime:manifest` / `packaged` 生成，包含 DHD build-output digest；`doctor:env` 和 `app.capabilities.runtime` 可读取 |
 | Packaged runtime preflight | 已验证 | macOS arm64 packaged app 在 `bundled.* = false` 时保持启动但拒绝启动外部 Host，无新增 `dsh web` 进程 |
 | 打包脚本 | 已验证（macOS arm64）/未发行 | electron-builder unpacked、zip、DMG 已验证；未配置 notarization，Windows/Linux 未验证 |
 | 完整 runtime 捆绑 | 计划中 | 当前 `electron-builder.yml` 不携带完整 Harness/Node 闭包；packaged Host 对不完整 manifest fail closed |

@@ -32,7 +32,7 @@
 - `packages/shared`: `protocol.ts`, `api.ts`, and versioned `capabilities.ts` are the cross-process contract source.
 - `harness/`: pinned upstream gitlink; do not edit it in desktop feature branches.
 
-The Agent surface is currently a tokenized Harness Web UI iframe. Workspace sync uses private Host HTTP routes and iframe storage injection; these are compatibility seams, not stable public plugin APIs. The current Changes panel is repository-level Git diff, not per-turn Agent diff. The current package does not bundle a complete Harness/Node runtime and has no signed release evidence.
+The Agent surface is currently a tokenized Harness Web UI iframe. Workspace sync uses private Host HTTP routes and iframe storage injection; these are compatibility seams, not stable public plugin APIs. The current Changes panel is repository-level Git diff, not per-turn Agent diff. The runtime manifest records a DHD build-output digest but the current package does not bundle a complete Harness/Node runtime and has no signed release evidence.
 
 ## Commands
 

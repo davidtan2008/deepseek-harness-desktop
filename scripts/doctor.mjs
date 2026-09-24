@@ -63,8 +63,19 @@ const manifestPath = join(root, 'apps/shell/runtime-manifest.json')
 if (existsSync(manifestPath)) {
   try {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-    const valid = manifest.schemaVersion === 1 && (manifest.mode === 'source' || manifest.mode === 'packaged') && typeof manifest.harness?.commit === 'string'
-    report('runtime manifest', `${manifest.mode} · Harness ${manifest.harness?.version ?? 'unknown'}`, valid)
+    const inventory = manifest.inventory
+    const inventoryValid = inventory?.scope === 'desktop-build'
+      && typeof inventory.complete === 'boolean'
+      && Number.isSafeInteger(inventory.fileCount)
+      && inventory.fileCount >= 0
+      && (inventory.digest === null || typeof inventory.digest === 'string')
+      && (inventory.complete ? inventory.fileCount > 0 && inventory.digest !== null : inventory.digest === null)
+    const valid = manifest.schemaVersion === 2
+      && (manifest.mode === 'source' || manifest.mode === 'packaged')
+      && typeof manifest.harness?.commit === 'string'
+      && inventoryValid
+    const inventoryLabel = inventory ? `${inventory.complete ? 'complete' : 'incomplete'} · ${inventory.fileCount} files` : 'inventory missing'
+    report('runtime manifest', `${manifest.mode} · Harness ${manifest.harness?.version ?? 'unknown'} · ${inventoryLabel}`, valid)
   } catch (error) {
     report('runtime manifest', `无法解析：${error instanceof Error ? error.message : String(error)}`, false)
   }

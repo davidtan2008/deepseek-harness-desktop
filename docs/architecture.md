@@ -135,7 +135,7 @@ preload 不再暴露 `invoke(channel, ...args)`。Renderer 不能绕过 API 对�
 
 ### 4.3 Runtime manifest
 
-`packages/shared/src/runtime.ts` 定义 `RuntimeManifest` schema。`apps/shell/src/runtime-manifest.ts` 从源码目录或 packaged resources 读取并校验它；有效 manifest 随 `app.capabilities` 发送给 Renderer，损坏/缺失时返回 `runtime: null` 并保留诊断。`runtime-manifest.json` 是构建产物，不提交到 Git；字段和发行规则见 [`runtime-manifest.md`](runtime-manifest.md)。
+`packages/shared/src/runtime.ts` 定义 `RuntimeManifest` schema 和 DHD build-output digest inventory。`apps/shell/src/runtime-manifest.ts` 从源码目录或 packaged resources 读取并校验它；有效 manifest 随 `app.capabilities` 发送给 Renderer，损坏/缺失时返回 `runtime: null` 并保留诊断。`runtime-manifest.json` 是构建产物，不提交到 Git；字段和发行规则见 [`runtime-manifest.md`](runtime-manifest.md)。
 
 ### 4.4 当前 IPC 分类
 

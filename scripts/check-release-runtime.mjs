@@ -12,6 +12,8 @@ const blockers = []
 if (!valid) blockers.push('manifest schema is invalid')
 if (valid && manifest.mode !== 'packaged') blockers.push('manifest mode is not packaged')
 if (valid && manifest.desktop.dirty) blockers.push('desktop source tree is dirty')
+if (valid && !manifest.inventory.complete) blockers.push('desktop build inventory is incomplete')
+if (valid && manifest.inventory.fileCount === 0) blockers.push('desktop build inventory is empty')
 if (valid) {
   for (const dependency of ['harness', 'node', 'pnpm', 'ripgrep']) {
     if (!manifest.bundled[dependency]) blockers.push(`${dependency} is not bundled`)

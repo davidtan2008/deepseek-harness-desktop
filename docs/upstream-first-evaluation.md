@@ -29,17 +29,17 @@
 | Host 启动 | `node --import tsx/esm ... web`，无 Harness 时回退 `npx` | source/package 语义不一致，包可能隐式依赖网络/全局 Node |
 | 认证/UI | tokenized URL + iframe + cookie/localStorage seed | Renderer 和外层代码接触私有 Web 细节 |
 | Profile | 只有 `cordis.patch.yml` 资源；没有上游同等 runtime/profile transaction | 插件失败恢复和升级不可证明 |
-| Runtime | 新增 `runtime-manifest`，但当前不包含完整文件 inventory/hash | 只能做诊断和 fail-closed，不能作为发行完整性证明 |
+| Runtime | 新增 `runtime-manifest` 和 DHD build-output digest inventory，但不包含完整 Harness/Node 逐文件 inventory | 可做诊断和 DHD build 变更检测，不能作为完整发行完整性证明 |
 | 状态 | 一个全局 Host、一个 watcher、多个窗口共享设置 | 无法安全表达 per-window generation |
 | 退出 | DHD 已有 coordinator，行为正确 | 可保留作为 fallback，但不应继续扩展更多上游职责 |
 
 ## 当前 Spike 证据（2026-09-24）
 
 - `pnpm --dir harness --filter @deepseek-ai/dsh-desktop build`：通过；上游 Desktop 的 TypeScript、tsdown 和 welcome bundle 均成功生成。
-- `pnpm --dir harness dev:desktop`：已尝试；第一次运行在 `Downloading Electron binary...` 阶段退出；使用 `ELECTRON_MIRROR` 重试后上游构建通过，但启动前因本地缺少 `@anthropic-ai/claude-agent-sdk-darwin-arm64`（`ENOENT`）退出，未形成可用的启动/Host smoke 证据。该结果不计为上游 Desktop 已验证。
+- `pnpm --dir harness --filter @deepseek-ai/dsh-desktop start`：补齐 Harness workspace 依赖并使用 `ELECTRON_MIRROR` 后，上游 Electron 启动并观察到 `dsh web: http://127.0.0.1:19387/?token=…` ready；通过 macOS app quit 触发 graceful shutdown，进程 exit 0 且无残留 Host。启动期间观察到 bounded HTTP 503 inventory/sync warning，未阻断 ready。
 - 当前只验证了 macOS arm64 的上游 build；上游 Host 的 Windows/Linux 行为仍未验证。
 
-因此当前决策仍是“保留 DHD iframe fallback，先完成可重复的上游启动 spike”，而不是直接删除现有 adapter。
+因此当前决策仍是“保留 DHD iframe fallback，先完成 Session/workspace 和跨平台 spike”，而不是直接删除现有 adapter。启动和 graceful shutdown 已有 macOS arm64 证据，但 Session/workspace 行为和跨平台证据仍缺失。
 
 ## 自动化兼容门
 
