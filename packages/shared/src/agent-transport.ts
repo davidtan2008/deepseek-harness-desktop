@@ -42,7 +42,7 @@ export type AgentTurnEvent =
   | { type: 'turn-completed'; turnId: string }
   | { type: 'turn-failed'; turnId: string; message: string }
   | { type: 'turn-cancelled'; turnId: string }
-  | { type: 'change-projection'; turnId: string; changedPaths: string[] }
+  | { type: 'change-projection'; turnId: string; changedPaths: string[]; summarySeq?: number }
 
 /** Main-process owner for one Agent transport generation. */
 export class AgentTransportUnsupportedError extends Error {

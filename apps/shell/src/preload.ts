@@ -101,6 +101,7 @@ const api: DesktopApi = {
     send: (request) => invoke('agent.send', request),
     cancel: (turnId) => invoke('agent.cancel', turnId),
     resume: (turnId) => invoke('agent.resume', turnId),
+    review: (turnId) => invoke('agent.review', turnId),
   },
   workspace: {
     sync: (projectPath: string) =>

@@ -243,6 +243,11 @@ export function registerIpc(ctx: IpcContext): void {
     if (runtime === undefined) throw new Error('native Agent Session is not connected')
     return runtime.resume(parseTurnId(turnId))
   })
+  ipcMain.handle('agent.review', async (e, turnId: unknown) => {
+    const runtime = agentRuntimes.get(e.sender.id)
+    if (runtime === undefined) throw new Error('native Agent Session is not connected')
+    return runtime.review(parseTurnId(turnId))
+  })
   ipcMain.handle('test.run', (e, cwd: unknown) => {
     if (typeof cwd !== 'string' || cwd.length === 0) throw new Error('test cwd is invalid')
     const onDestroyed = (): void => { cancelProjectTests(e.sender.id) }

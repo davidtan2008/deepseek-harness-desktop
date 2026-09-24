@@ -1,4 +1,5 @@
 import type {
+  AgentReviewResult,
   AppSettings,
   FileEntry,
   FileSearchHit,
@@ -85,6 +86,7 @@ export interface DesktopApi {
     send: (request: AgentTurnRequest) => Promise<{ turnId: string }>
     cancel: (turnId: string) => Promise<void>
     resume: (turnId: string) => Promise<{ turnId: string }>
+    review: (turnId: string) => Promise<AgentReviewResult>
   }
   workspace: {
     sync: (projectPath: string) => Promise<WorkspaceSyncResult | { error: string }>

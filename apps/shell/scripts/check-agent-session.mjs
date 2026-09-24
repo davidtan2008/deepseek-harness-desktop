@@ -47,7 +47,12 @@ const server = createServer(async (request, response) => {
   }
   if (request.method === 'GET' && url.pathname === '/api/changes.summary') {
     response.writeHead(200, { 'content-type': 'application/json' })
-    response.end(JSON.stringify({ turn: Number(url.searchParams.get('turn') ?? 1), files: [{ path: 'src/changed.ts' }], total: 1, added: 1, deleted: 0 }))
+    response.end(JSON.stringify({ turn: Number(url.searchParams.get('turn') ?? 1), files: [{ path: 'src/changed.ts', display: 'src/changed.ts', added: 1, deleted: 0 }], total: 1, added: 1, deleted: 0 }))
+    return
+  }
+  if (request.method === 'GET' && url.pathname === '/api/changes.diff') {
+    response.writeHead(200, { 'content-type': 'application/json' })
+    response.end(JSON.stringify({ kind: 'text', path: 'src/changed.ts', display: 'src/changed.ts', before: true, after: true, hunks: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-old', '+new'] }], coarse: false }))
     return
   }
   if (request.method !== 'POST' || !url.pathname.startsWith('/api/session/')) {
@@ -174,6 +179,9 @@ try {
     new Promise((_, reject) => setTimeout(() => reject(new Error('AgentRuntime did not complete')), 2_000)),
   ])
   assert.equal(runtimeEvents.some((event) => event.type === 'turn-started'), true)
+  const review = await runtime.review('runtime-turn')
+  assert.equal(review.available, true)
+  assert.match(review.files[0].diff?.kind ?? '', /text/)
   await runtime.dispose()
 
   console.log('Harness Web Session port check passed.')

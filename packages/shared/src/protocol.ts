@@ -147,6 +147,42 @@ export interface WorkspaceSyncResult {
   agentTransport?: AgentTransportDescriptor
 }
 
+/** One bounded hunk in an Agent turn before/after comparison. */
+export interface AgentReviewHunk {
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+  lines: string[]
+}
+
+/** Before/after comparison served by the Harness workspace-changes route. */
+export type AgentReviewDiff =
+  | {
+    kind: 'text'
+    path: string
+    display: string
+    before: boolean
+    after: boolean
+    hunks: AgentReviewHunk[]
+    coarse: boolean
+  }
+  | { kind: 'binary' | 'oversized'; path: string; display: string }
+
+/** Review data for one announced Agent workspace change. */
+export interface AgentReviewResult {
+  turnId: string
+  seq: number
+  available: boolean
+  files: Array<{
+    path: string
+    display: string
+    added: number
+    deleted: number
+    diff: AgentReviewDiff | null
+  }>
+}
+
 /** Bounded result from the fixed project test command. */
 export interface ProjectTestResult {
   command: 'pnpm' | 'npm'
@@ -210,6 +246,7 @@ export type IpcChannel =
   | 'agent.send'
   | 'agent.cancel'
   | 'agent.resume'
+  | 'agent.review'
   | 'test.run'
   | 'test.cancel'
   | 'workspace.sync'

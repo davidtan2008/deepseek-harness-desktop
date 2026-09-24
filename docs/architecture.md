@@ -91,7 +91,7 @@ apps/workbench/src/
 ├── SearchPanel.tsx         # 流式搜索/取消/错误态
 ├── TerminalPanel.tsx       # xterm + PTY
 ├── ScmPanel.tsx            # Git
-├── ChangesPanel.tsx         # Agent changed-path 摘要 + 当前 Git diff
+├── ChangesPanel.tsx         # Agent changed-path 摘要、当前/前后 diff、test result
 ├── CommandPalette.tsx      # 快开/命令
 ├── InlineEdit.tsx           # 行内编辑
 ├── SettingsPanels.tsx       # 设置/MCP/Rules
@@ -154,7 +154,7 @@ preload 不再暴露 `invoke(channel, ...args)`。Renderer 不能绕过 API 对�
 | 搜索 | files、content、progress、cancel | Main |
 | Git | status、diff、stage、commit、push、pull | Main + git CLI |
 | 终端 | acquire、write、resize、kill、data/exit | Main + PTY |
-| Agent/Host | host status/restart、workspace sync、agent status/send/cancel/resume、agent events、test run/cancel | Main + Harness Host/platform |
+| Agent/Host | host status/restart、workspace sync、agent status/send/cancel/resume/review、agent events、test run/cancel | Main + Harness Host/platform |
 | 配置 | credentials、MCP、rules、inline edit | Main + Harness/platform |
 
 ## 5. 启动、运行和退出时序

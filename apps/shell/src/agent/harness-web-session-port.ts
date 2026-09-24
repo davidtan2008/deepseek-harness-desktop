@@ -3,6 +3,9 @@ import WebSocket, { type RawData } from 'ws'
 import {
   AgentTransportUnsupportedError,
   buildContextBundle,
+  type AgentReviewDiff,
+  type AgentReviewHunk,
+  type AgentReviewResult,
   type AgentTransportCapabilities,
   type AgentTurnEvent,
   type AgentTurnRequest,
@@ -140,6 +143,55 @@ function changePaths(value: unknown): string[] | undefined {
     paths.push(path)
   }
   return paths
+}
+
+interface ReviewSummaryFile {
+  path: string
+  display: string
+  added: number
+  deleted: number
+}
+
+function reviewSummary(value: unknown): ReviewSummaryFile[] | undefined {
+  const summary = record(value)
+  if (summary === undefined || !Array.isArray(summary.files) || summary.files.length > 500) return undefined
+  const files: ReviewSummaryFile[] = []
+  for (const value of summary.files) {
+    const file = record(value)
+    const path = text(file?.path)
+    const display = text(file?.display)
+    if (file === undefined || path === undefined || display === undefined || !Number.isSafeInteger(file.added) || !Number.isSafeInteger(file.deleted)) return undefined
+    files.push({ path, display, added: file.added as number, deleted: file.deleted as number })
+  }
+  return files
+}
+
+function reviewHunk(value: unknown): AgentReviewHunk | undefined {
+  const hunk = record(value)
+  if (hunk === undefined || ![hunk.oldStart, hunk.oldLines, hunk.newStart, hunk.newLines].every((field) => Number.isSafeInteger(field) && (field as number) >= 0) || !Array.isArray(hunk.lines) || !hunk.lines.every((line) => typeof line === 'string')) return undefined
+  return {
+    oldStart: hunk.oldStart as number,
+    oldLines: hunk.oldLines as number,
+    newStart: hunk.newStart as number,
+    newLines: hunk.newLines as number,
+    lines: hunk.lines as string[],
+  }
+}
+
+function reviewDiff(value: unknown): AgentReviewDiff | undefined {
+  const diff = record(value)
+  const path = text(diff?.path)
+  const display = text(diff?.display)
+  if (diff === undefined || path === undefined || display === undefined) return undefined
+  if (diff.kind === 'binary' || diff.kind === 'oversized') return { kind: diff.kind, path, display }
+  if (diff.kind !== 'text' || typeof diff.before !== 'boolean' || typeof diff.after !== 'boolean' || typeof diff.coarse !== 'boolean' || !Array.isArray(diff.hunks)) return undefined
+  const hunks: AgentReviewHunk[] = []
+  for (const value of diff.hunks) {
+    const hunk = reviewHunk(value)
+    if (hunk === undefined) return undefined
+    hunks.push(hunk)
+  }
+  return { kind: 'text', path, display, before: diff.before, after: diff.after, hunks, coarse: diff.coarse }
 }
 
 function promptContent(request: AgentTurnRequest, maxContextBytes: number): Array<{ type: 'text'; text: string }> {
@@ -471,6 +523,35 @@ export class HarnessWebSessionPort implements AgentSessionPort {
     return this.assignTurn(turn, pending)
   }
 
+  async review(seq: number): Promise<Omit<AgentReviewResult, 'turnId'>> {
+    if (!Number.isSafeInteger(seq) || seq < 0) throw new Error('Agent review sequence is invalid')
+    try {
+      const summaryValue: unknown = await this.options.api.getJson('/api/changes.summary', {
+        sessionId: this.options.sessionId,
+        seq: String(seq),
+      })
+      const summary = reviewSummary(summaryValue)
+      if (summary === undefined) return { seq, available: false, files: [] }
+      const files = await Promise.all(summary.map(async (file, index) => {
+        let diff: AgentReviewDiff | null = null
+        try {
+          const value: unknown = await this.options.api.getJson('/api/changes.diff', {
+            sessionId: this.options.sessionId,
+            seq: String(seq),
+            index: String(index),
+          })
+          diff = reviewDiff(value) ?? null
+        } catch {
+          // A live Session may outlive the optional comparison route.
+        }
+        return { ...file, diff }
+      }))
+      return { seq, available: true, files }
+    } catch {
+      return { seq, available: false, files: [] }
+    }
+  }
+
   private async emitChangeProjection(turnId: string, seq: number): Promise<void> {
     try {
       const value: unknown = await this.options.api.getJson('/api/changes.summary', {
@@ -478,7 +559,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
         seq: String(seq),
       })
       const paths = changePaths(value)
-      if (paths !== undefined) this.emit({ type: 'change-projection', turnId, changedPaths: paths })
+      if (paths !== undefined) this.emit({ type: 'change-projection', turnId, changedPaths: paths, summarySeq: seq })
     } catch {
       // The event remains in the Session log when the optional UI summary route is not mounted.
     }

@@ -1,6 +1,7 @@
 import {
   AgentTurnController,
   AGENT_TRANSPORT_CONTRACT_VERSION,
+  type AgentReviewResult,
   type AgentTransportDescriptor,
   type AgentTurnEvent,
   type AgentTurnRequest,
@@ -40,6 +41,7 @@ export class AgentRuntime {
   private readonly driver: HostIpcTransportDriver
   private readonly controller: AgentTurnController
   private readonly unsubscribe: () => void
+  private readonly reviewSequences = new Map<string, number>()
   private connected = false
 
   constructor(
@@ -53,7 +55,12 @@ export class AgentRuntime {
     this.port = new HarnessWebSessionPort({ api, sessionId })
     this.driver = new HostIpcTransportDriver(new ExistingHostConnection(host), this.port, false)
     this.controller = new AgentTurnController(this.driver)
-    this.unsubscribe = this.driver.subscribe((event) => this.emit(event))
+    this.unsubscribe = this.driver.subscribe((event) => {
+      if (event.type === 'change-projection' && event.summarySeq !== undefined) {
+        this.reviewSequences.set(event.turnId, event.summarySeq)
+      }
+      this.emit(event)
+    })
   }
 
   get id(): string {
@@ -85,8 +92,16 @@ export class AgentRuntime {
     return { turnId: snapshot.turnId }
   }
 
+  async review(turnId: string): Promise<AgentReviewResult> {
+    const seq = this.reviewSequences.get(turnId)
+    if (seq === undefined) throw new Error(`no workspace change summary is available for turn: ${turnId}`)
+    const result = await this.port.review(seq)
+    return { turnId, ...result }
+  }
+
   async dispose(): Promise<void> {
     this.connected = false
+    this.reviewSequences.clear()
     this.unsubscribe()
     await this.controller.dispose()
   }
