@@ -10,6 +10,7 @@
 ### Added
 
 - **R1 runtime manifest 基础**：新增 `RuntimeManifest` schema、source/packaged 生成命令、doctor 校验、`app.capabilities.runtime` 集成和 `electron-builder` 资源声明；当前 packaged manifest 会诚实标记完整 Harness/Node/pnpm/ripgrep 尚未 bundled。
+- **上游 Desktop 兼容门**：新增 `pnpm upstream:check`，在 contract 测试中固定检查 Host IPC protocol、generation cleanup、runtime hash、Profile recovery 和 `runProfile` seam 的存在性。
 - **Packaged runtime fail-closed**：packaged Host 启动前校验 runtime manifest；缺失或不完整时拒绝静默回退到 `npx`/系统 Node，`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 仅作为本地诊断逃生开关。
 - macOS arm64 的 unpacked/完整 electron-builder 打包已验证，`runtime-manifest.json` 已进入 App Resources；本机未配置 notarization，因此仍不宣称正式发行。
 - **AI-agent-friendly product and engineering documentation**：新增市场与生态调研、重设计路线图、支持矩阵、架构目标 seam、并行 Agent 开发指南、`llms.txt`、GitHub 增长策略和四份 ADR；README 现在明确 source preview、iframe 边界、上游关系和未实现能力。

@@ -43,7 +43,7 @@ Important current limits:
 - The Changes panel is repository-level Git diff, not an Agent-turn diff.
 - Desktop `defaultModel`, `defaultPreset`, and `sandboxMode` are not automatically Host-effective settings.
 - The current package does not bundle a complete Harness/Node runtime; a packaged Host fails closed when the runtime manifest is incomplete instead of silently falling back to system Node/npx.
-- The outer repository has no complete unit/E2E suite; `pnpm test:contract` only covers capability and IPC/preload contracts, and typecheck/build are not runtime tests.
+- The outer repository has no complete unit/E2E suite; `pnpm test:contract` covers capability, IPC/preload, and the static upstream Desktop compatibility gate; typecheck/build are not runtime tests.
 
 See the version-bound [support matrix](docs/support-matrix.md) before making product claims.
 
@@ -120,6 +120,7 @@ The Host is an external Node process. Main supervises it but does not execute Ag
 
 ```sh
 pnpm docs:check
+pnpm upstream:check
 pnpm typecheck
 pnpm test:contract
 pnpm build

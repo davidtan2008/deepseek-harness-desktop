@@ -41,6 +41,19 @@
 
 因此当前决策仍是“保留 DHD iframe fallback，先完成可重复的上游启动 spike”，而不是直接删除现有 adapter。
 
+## 自动化兼容门
+
+`pnpm upstream:check` 和 `pnpm test:contract` 会检查当前 Harness pin 是否仍提供候选 seam：
+
+- Desktop Host IPC protocol version；
+- `ready`、`fatal`、`shutdown-complete` 和 update-task 消息；
+- `DesktopBackendController` 的 generation/cleanup API；
+- runtime tree 的 hash/verify API；
+- ProjectManager 的 Profile/plugin recovery API；
+- `desktop-host` 的 `runProfile`、authenticated URL 和 IPC 事件。
+
+任一 seam 消失或版本漂移都会使检查失败，提示先更新 ADR 和迁移计划，而不是让 DHD 静默继续依赖私有实现。该检查只证明源码兼容，不等于上游 Desktop 已完成真实启动验证。
+
 ## 迁移策略
 
 ```text

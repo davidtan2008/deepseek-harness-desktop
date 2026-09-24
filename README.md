@@ -43,7 +43,7 @@ DeepSeek Harness 已经是一个强大的、可组合的 Agent runtime：模型�
 - Changes 面板是仓库级 Git diff，不是按 Agent turn 归因的 diff。
 - `defaultModel`、`defaultPreset` 和 `sandboxMode` 的桌面设置不能自动等同于 Host effective settings。
 - 打包配置目前不包含完整 Harness/Node 闭包；packaged Host 会在 runtime manifest 不完整时 fail closed，不会静默回退到系统 Node/npx。
-- 外层仓库当前没有完整 unit/E2E 测试套件；`pnpm test:contract` 只覆盖 capability 与 IPC/preload contract，`typecheck` 和 `build` 不等于运行时验证。
+- 外层仓库当前没有完整 unit/E2E 测试套件；`pnpm test:contract` 覆盖 capability、IPC/preload 和上游 Desktop 静态兼容门，`typecheck` 和 `build` 不等于运行时验证。
 
 完整、绑定版本的支持矩阵见 [docs/support-matrix.md](docs/support-matrix.md)。
 
@@ -158,6 +158,7 @@ DHD 的长期方向是公开、版本化、可替换的 capability contract，�
 
 ```sh
 pnpm docs:check
+pnpm upstream:check
 pnpm typecheck
 pnpm test:contract
 pnpm build

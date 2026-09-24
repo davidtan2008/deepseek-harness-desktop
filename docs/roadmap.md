@@ -71,7 +71,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 | 阶段 | 状态 | 当前证据 / 下一步 |
 |---|---|---|
 | R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
-| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物和 packaged fail-closed smoke 已验证；上游 Desktop build 已通过、启动 smoke 受 Electron 下载环境阻塞；下一步是完成 upstream-first spike、runtime closure 和安装后验证 |
+| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物和 packaged fail-closed smoke 已验证；上游 Desktop build 和自动兼容门已通过、启动 smoke 受 Electron 下载环境阻塞；下一步是完成 upstream-first 启动 spike、runtime closure 和安装后验证 |
 | R2 Agent 原生闭环 | ⏳ 未开始 | 先完成 R1 的 runtime/Host contract，再实现 TransportDriver 和 turn controller |
 | R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
 
@@ -322,9 +322,8 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 
 ## 10. 下一轮执行清单
 
-1. 合并本轮文档与 capability contract 重构，并跑 `pnpm typecheck`、`pnpm test:contract`、`pnpm build`、`git diff --check`。
-2. 为 `app.capabilities`、preload 白名单和开发隔离变量增加行为测试/契约检查。
-3. 新增 `scripts/doctor.mjs`，让新 clone 能解释缺失 submodule、Node、pnpm、rg、PTY 和端口问题。
-4. 为 Host 生命周期、workspace sync、PTY 和搜索 fallback 建最小测试矩阵。
-5. 决定是否在 R2 先实现“Host IPC bridge + turn controller”，并写 ADR。
-6. 在有可安装包之前，README 继续使用 `source preview`，不添加虚假的下载 badge。
+1. 在 runtime manifest 中加入与上游 `desktop-runtime.json` 对齐的 inventory/hash，并确定 Node、Harness、pnpm、rg 的闭包打包方案。
+2. 完成 upstream Desktop 启动 smoke：验证结构化 Host IPC、Profile/runtime preflight 和 shutdown；更新 [`upstream-first-evaluation.md`](upstream-first-evaluation.md) 与 ADR 0004。
+3. 为 Host 生命周期、workspace sync、PTY 和搜索 fallback 建最小行为测试矩阵；`pnpm upstream:check` 保持进入 contract gate。
+4. 只有 R1 的安装/恢复证据达到退出门后，才在 R2 实现“Host IPC bridge + TransportDriver + turn controller”，并写 ADR。
+5. 在有可安装、可签名、可回滚的包之前，README 继续使用 `source preview`，不添加虚假的下载 badge。

@@ -10,7 +10,7 @@
 |---|---|---|
 | 独立社区项目 | 已验证 | 不是 DeepSeek 官方 Desktop，也没有官方背书；见 README |
 | 源码开发模式 | 已验证 | `pnpm install` → `pnpm dev`；需要本机 Node 22.19+ 和可运行的 Harness checkout |
-| 上游 Desktop build spike | 部分验证 | macOS arm64 `pnpm --dir harness --filter @deepseek-ai/dsh-desktop build` 通过；启动 smoke 在 Electron binary 下载阶段受环境阻塞 |
+| 上游 Desktop build spike | 部分验证 | macOS arm64 `pnpm --dir harness --filter @deepseek-ai/dsh-desktop build` 通过；`pnpm upstream:check` 通过；启动 smoke 在 Electron binary 下载阶段受环境阻塞 |
 | 外部 Host 复用 | 已实现未自动化 | `DHD_HARNESS_URL` 解析后不由桌面终止；workspace sync 需要 token |
 | Runtime manifest | 已验证 | `pnpm runtime:manifest` / `packaged` 生成，`doctor:env` 和 `app.capabilities.runtime` 可读取 |
 | Packaged runtime preflight | 已验证 | macOS arm64 packaged app 在 `bundled.* = false` 时保持启动但拒绝启动外部 Host，无新增 `dsh web` 进程 |
@@ -95,7 +95,7 @@
 | `git diff --check` | 待本轮完成后执行 | 文档和代码共同检查 |
 | 真实 Electron 搜索/搜索 fallback | 已验证 | 手工验证记录在 CHANGELOG |
 | 真实 Host/PTY/退出 | 已验证 | macOS 本机验证；不等于三平台 CI |
-| 外层 contract checks | 已验证 | `pnpm test:contract` 覆盖 capability manifest 和 IPC/preload contract；完整 unit/E2E 仍未实现 |
+| 外层 contract checks | 已验证 | `pnpm test:contract` 覆盖 capability manifest、IPC/preload 和上游 Desktop 静态兼容门；完整 unit/E2E 仍未实现 |
 
 ## 8. 维护规则
 

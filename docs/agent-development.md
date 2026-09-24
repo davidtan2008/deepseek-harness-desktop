@@ -99,7 +99,7 @@ pnpm build
 git diff --check
 ```
 
-当前外层仓库没有完整 `pnpm test` 或 Playwright suite；`pnpm test:contract` 只验证 capability 与 IPC/preload contract。不要把“typecheck/build 通过”写成“测试通过”。新增测试或 E2E 后，应把真实命令写进对应文档和 CI。
+当前外层仓库没有完整 `pnpm test` 或 Playwright suite；`pnpm test:contract` 验证 capability、IPC/preload 和上游 Desktop 静态兼容门。不要把“typecheck/build 通过”写成“测试通过”。新增测试或 E2E 后，应把真实命令写进对应文档和 CI。
 
 按改动选择检查：
 

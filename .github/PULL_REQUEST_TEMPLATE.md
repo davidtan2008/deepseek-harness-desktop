@@ -20,6 +20,7 @@
 ## 验证清单
 
 - [ ] `pnpm docs:check`
+- [ ] `pnpm upstream:check`
 - [ ] `pnpm typecheck`
 - [ ] `pnpm test:contract`
 - [ ] `pnpm build`
