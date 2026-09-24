@@ -119,7 +119,7 @@ flowchart LR
 | 产品为什么这样定位、竞品有什么优点 | [市场与生态调研](docs/market-research.md) |
 | 当前代码如何启动、通信、清理资源 | [架构文档](docs/architecture.md) |
 | 当前 Node/Harness/平台依赖和 bundled 状态 | [Runtime Manifest](docs/runtime-manifest.md) |
-| 评估上游 Desktop Host 复用方案 | [Upstream-first Evaluation](docs/upstream-first-evaluation.md) |
+| 评估上游 Desktop Host 复用方案 | [Upstream-first Evaluation](docs/upstream-first-evaluation.md) · [Host IPC Transport](docs/host-ipc-transport.md) |
 | 下一阶段做什么、什么算完成 | [路线图](docs/roadmap.md) |
 | 我是 AI coding agent，如何安全接手任务 | [AI Agent 开发指南](docs/agent-development.md) · [`llms.txt`](llms.txt) |
 | 当前哪个平台/能力真实可用 | [支持矩阵](docs/support-matrix.md) |

@@ -76,6 +76,7 @@ apps/shell/src/
 ├── inline-edit.ts          # Cmd/Ctrl+K 的模型调用
 ├── updater.ts              # electron-updater 骨架
 ├── runtime-manifest.ts     # 读取/校验 source 或 packaged runtime manifest
+├── agent/host-ipc-driver.ts # upstream Desktop Host lifecycle IPC + session port seam
 └── preload.ts              # 白名单 API，不暴露通用 invoke
 
 apps/workbench/src/
@@ -314,6 +315,8 @@ flowchart TB
 ### 9.3 TransportDriver
 
 跨进程 DTO 和 Main owner interface 已落在 [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts)。当前 capability snapshot 会登记 `managed-iframe` / `external-loopback` descriptor，并明确 `sendTurn`、`cancel`、`resume`、subscription 和 change projection 尚未实现；选区注入是 `clipboard-fallback`。
+
+`UpstreamHostIpcConnection` 已用 Node child IPC 对接上游 `dsh-desktop-host` 的 `ready` / `fatal` / `shutdown-complete` / `update-tasks` 事件；`HostIpcTransportDriver` 通过注入的 `AgentSessionPort` 接入 turn contract。当前默认 Session port 仍返回结构化 `unsupported`，不会把上游 Web IPC 误当成 turn API。
 
 `AgentTurnController` 纯状态机已先于真实 driver 实现落地，并由 contract fixture 覆盖 start、approval、cancel、resume、complete 和 dispose 顺序。
 

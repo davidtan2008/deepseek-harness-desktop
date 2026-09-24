@@ -13,6 +13,7 @@
 - [docs/change-projection.md](docs/change-projection.md): read-only turn change projection and conflict rules.
 - [docs/context-sources.md](docs/context-sources.md): bounded model-visible context source contract.
 - [docs/upstream-first-evaluation.md](docs/upstream-first-evaluation.md): upstream Desktop Host reuse spike and migration criteria.
+- [docs/host-ipc-transport.md](docs/host-ipc-transport.md): upstream Host lifecycle IPC adapter and Session port seam.
 - [docs/roadmap.md](docs/roadmap.md): outcome-based phases and exit gates.
 - [docs/agent-development.md](docs/agent-development.md): workflow for AI coding agents and parallel worktrees.
 - [docs/support-matrix.md](docs/support-matrix.md): evidence-based current capability matrix.
@@ -45,6 +46,7 @@ pnpm doctor:env
 pnpm upstream:check
 pnpm dev
 pnpm smoke:workspace
+pnpm smoke:upstream-host
 pnpm typecheck
 pnpm test:contract
 pnpm build

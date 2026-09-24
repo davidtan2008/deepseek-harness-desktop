@@ -71,8 +71,8 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 | 阶段 | 状态 | 当前证据 / 下一步 |
 |---|---|---|
 | R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
-| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物、packaged fail-closed、上游 Desktop 启动/退出和 `smoke:workspace` 已验证；跨平台、升级回滚和完整 runtime closure 仍待验证 |
-| R2 Agent 原生闭环 | 🚧 进行中 | 已定义 `AgentTransportDescriptor`/`AgentTransportDriver` contract，并用 `pnpm test:contract` 验证 Turn Controller 状态机；当前 iframe descriptor 诚实标记 send/cancel/resume/projection unsupported；下一步接入 upstream Host IPC adapter |
+| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物、packaged fail-closed、上游 Desktop 启动/退出、workspace smoke 和 upstream Host IPC lifecycle 已验证；跨平台、升级回滚和完整 runtime closure 仍待验证 |
+| R2 Agent 原生闭环 | 🚧 进行中 | 已定义 `AgentTransportDescriptor`/`AgentTransportDriver` contract，验证 Turn Controller 状态机，并实现 upstream Host IPC lifecycle driver；当前 Session port 仍诚实返回 unsupported，下一步接入真实 turn/session channel |
 | R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
 
 本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明；R1 workspace/session smoke 已通过。R2 已进入 contract-first 阶段；正式 release 仍必须满足 R1 全部退出门。
@@ -323,7 +323,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 ## 10. 下一轮执行清单
 
 1. 将当前 DHD build-output digest inventory 扩展为与上游 `desktop-runtime.json` 对齐的完整 inventory/hash，并确定 Node、Harness、pnpm、rg 的闭包打包方案。
-2. 完成 upstream Desktop Session/workspace smoke：验证结构化 Host IPC、Profile/runtime preflight 和真实工作区切换；更新 [`upstream-first-evaluation.md`](upstream-first-evaluation.md) 与 ADR 0004。
+2. 为 upstream Host IPC 接入真实 Session/turn channel：验证结构化 turn/context/approval/change events 和 Session log 记录；Host lifecycle 已由 `smoke:upstream-host` 覆盖。
 3. 保持 `pnpm smoke:workspace` 的真实 Host/session 回归，并补齐 Host 生命周期、PTY 和搜索 fallback 的最小行为测试矩阵；`pnpm upstream:check` 保持进入 contract gate。
 4. 只有 R1 的安装/恢复证据达到退出门后，才在 R2 实现“Host IPC bridge + TransportDriver + turn controller”，并写 ADR。
 5. 在有可安装、可签名、可回滚的包之前，README 继续使用 `source preview`，不添加虚假的下载 badge。

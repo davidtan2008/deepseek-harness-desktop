@@ -26,6 +26,7 @@ When sources disagree, fix the stale source or document the discrepancy. Do not 
 - `packages/shared/src/turn-controller.ts`
 - `packages/shared/src/change-projection.ts`
 - `packages/shared/src/context-source.ts`
+- `apps/shell/src/agent/host-ipc-driver.ts`
 - `docs/runtime-manifest.md`
 - the affected source and nearest tests
 

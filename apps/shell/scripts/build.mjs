@@ -31,5 +31,16 @@ await build({
   external: ['electron'],
 })
 
+await build({
+  absWorkingDir: join(root, '..'),
+  entryPoints: [join(src, 'agent/host-ipc-driver.ts')],
+  outfile: join(outdir, 'host-ipc-driver.mjs'),
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  sourcemap: true,
+})
+
 copyFileSync(join(root, 'pty-bridge.py'), join(outdir, 'pty-bridge.py'))
 console.log('shell build ok')

@@ -43,6 +43,7 @@ pnpm upstream:check  # 检查 Harness Desktop Host seam 和 protocol version
 pnpm typecheck       # 先构建 shared，再检查所有 workspace
 pnpm test:contract   # capability manifest + IPC/preload + upstream contract checks
 pnpm smoke:workspace # 真实 Host workspace/session idempotency（macOS arm64）
+pnpm smoke:upstream-host # 真实 upstream Host IPC lifecycle（需 Harness Desktop build）
 pnpm build           # shared -> workbench -> shell
 pnpm pack            # 当前平台 electron-builder
 pnpm pack:mac

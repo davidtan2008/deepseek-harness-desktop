@@ -19,7 +19,7 @@ DHD 当前把 Harness Web UI 放在 tokenized iframe 中。这个 surface 能显
 - capability snapshot 必须声明当前 transport 是否支持每个操作；
 - 不支持的能力返回结构化 `unsupported`，不静默降级。
 
-当前实现只登记 `managed-iframe` / `external-loopback` descriptor：`sendTurn`、`cancel`、`resume` 和 change projection 均为 `false`，选区注入明确标为 `clipboard-fallback`。纯 `AgentTurnController` 状态机已通过 contract fixture 验证，但尚未接入真实 Host。这比把“有一个 iframe”标成完整 Agent API 更诚实。
+当前实现只登记 `managed-iframe` / `external-loopback` descriptor：`sendTurn`、`cancel`、`resume` 和 change projection 均为 `false`，选区注入明确标为 `clipboard-fallback`。纯 `AgentTurnController` 状态机已通过 contract fixture 验证；`UpstreamHostIpcConnection` 已接入真实 upstream Host lifecycle IPC，但默认 `AgentSessionPort` 仍返回结构化 `unsupported`，尚未接入真实 turn/session channel。这比把“有一个 iframe”标成完整 Agent API 更诚实。
 
 ## 边界
 

@@ -14,6 +14,7 @@
 - **上游 Desktop 启动/退出 spike**：在 macOS arm64 补齐 Harness workspace 依赖后观察到 Electron 和 `dsh web` authenticated ready URL；通过 macOS app quit 验证 graceful shutdown、exit 0 和无残留 Host。启动期间有 bounded HTTP 503 inventory warning。
 - **Agent Transport contract**：新增 `AgentTransportDescriptor`/`AgentTransportDriver`、纯 `AgentTurnController` 和 R2 ADR 0005；Desktop capability contract 升至 v2，当前 iframe transport 明确声明 turn/cancel/resume/projection 尚未实现，选区仅支持 clipboard fallback。
 - **Context Sources contract**：新增 bounded `buildContextBundle()`，AgentPanel 发送选区时生成结构化 context；Session log 自动记录仍待真实 TransportDriver 接入。
+- **Upstream Host IPC lifecycle driver**：新增 `UpstreamHostIpcConnection` / `HostIpcTransportDriver`，支持真实 `dsh-desktop-host` 的 `ready`、`fatal`、`update-tasks`、`shutdown-complete` 和 bounded teardown；`smoke:upstream-host` 已通过。turn/session channel 仍通过注入的 `AgentSessionPort` 明确标记 unsupported。
 - **Change Projection contract**：新增只读 `projectChanges()` 纯函数和冲突/revert/路径安全 fixture；尚未接入真实 watcher、Session/tool event 或 Review UI。
 - **Workspace/session smoke**：新增 `pnpm smoke:workspace`，通过真实 Host RPC 验证 `workspace/create` 幂等、session 创建/复用、token/cookie 认证和无残留退出。
 - **Packaged runtime fail-closed**：packaged Host 启动前校验 runtime manifest；缺失或不完整时拒绝静默回退到 `npx`/系统 Node，`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 仅作为本地诊断逃生开关。

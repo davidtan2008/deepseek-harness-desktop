@@ -109,6 +109,7 @@ The Host is an external Node process. Main supervises it but does not execute Ag
 - [Architecture](docs/architecture.md) — as-built topology, contracts, lifecycle, and target seams.
 - [Runtime manifest](docs/runtime-manifest.md) — generated runtime identity and bundled-dependency contract.
 - [Upstream-first evaluation](docs/upstream-first-evaluation.md) — Desktop Host reuse spike and migration criteria.
+- [Host IPC transport](docs/host-ipc-transport.md) — upstream lifecycle adapter and Session port seam.
 - [AI agent development](docs/agent-development.md) — source-of-truth, parallel worktrees, checks, and handoff.
 - [`llms.txt`](llms.txt) — compact machine-readable project index.
 - [Support matrix](docs/support-matrix.md) — evidence and current limitations.

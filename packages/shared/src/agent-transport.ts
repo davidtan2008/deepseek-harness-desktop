@@ -45,6 +45,15 @@ export type AgentTurnEvent =
   | { type: 'change-projection'; turnId: string; changedPaths: string[] }
 
 /** Main-process owner for one Agent transport generation. */
+export class AgentTransportUnsupportedError extends Error {
+  readonly code = 'unsupported' as const
+
+  constructor(readonly operation: 'connect' | 'sendTurn' | 'cancel' | 'resume' | 'subscribe' | 'changeProjection') {
+    super(`agent transport operation is unsupported: ${operation}`)
+    this.name = 'AgentTransportUnsupportedError'
+  }
+}
+
 export interface AgentTransportDriver {
   capabilities(): AgentTransportDescriptor
   connect(): Promise<AgentTransportDescriptor>
