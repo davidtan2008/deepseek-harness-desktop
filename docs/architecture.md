@@ -1,6 +1,6 @@
 # 架构文档（As-Built + Target seams）
 
-> 本文首先描述当前代码真实存在的架构，再单独标出正在建设的设计缝。当前基线为 `c58b815`，Harness gitlink 为 `00102833d`（`dsh-v0.1.7-alpha.2`）。未来目标见 [`roadmap.md`](roadmap.md)，市场与竞品取舍见 [`market-research.md`](market-research.md)。
+> 本文首先描述当前代码真实存在的架构，再单独标出正在建设的设计缝。当前基线为 `094a3e7`，Harness gitlink 为 `00102833d`（`dsh-v0.1.7-alpha.2`）。未来目标见 [`roadmap.md`](roadmap.md)，市场与竞品取舍见 [`market-research.md`](market-research.md)。
 
 ## 1. 产品不变量
 
