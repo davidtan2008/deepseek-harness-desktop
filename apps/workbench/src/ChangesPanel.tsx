@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AgentReviewResult, ProjectTestResult } from '@dhd/shared'
-import { dhd } from './lib'
+import { dhd, randomUUID } from './lib'
 import { useApp } from './state'
 
 function reviewLines(review: AgentReviewResult): string[] {
@@ -19,6 +19,7 @@ export function ChangesPanel() {
   const [testing, setTesting] = useState(false)
   const [review, setReview] = useState<AgentReviewResult>()
   const [reviewError, setReviewError] = useState<string>()
+  const [askingAgent, setAskingAgent] = useState(false)
   const agentChange = useMemo(
     () => [...app.agentEvents].reverse().find((event) => event.type === 'change-projection'),
     [app.agentEvents],
@@ -52,6 +53,24 @@ export function ChangesPanel() {
     }
   }
 
+  async function askAgentToFix() {
+    if (agentChange?.type !== 'change-projection' || testResult === undefined || askingAgent) return
+    setAskingAgent(true)
+    setReviewError(undefined)
+    try {
+      const output = testResult.output.slice(-64 * 1024)
+      await dhd().agent.send({
+        turnId: randomUUID(),
+        text: `Agent turn ${agentChange.turnId} 的项目测试失败（${testResult.command}，退出码 ${String(testResult.exitCode)}${testResult.timedOut ? '，超时' : ''}）。请根据以下输出检查并修复相关变更：\n${output}`,
+        context: changedPaths.map((path) => ({ kind: 'file' as const, path })),
+      })
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setAskingAgent(false)
+    }
+  }
+
   async function runTests() {
     if (app.projectPath === undefined || testing) return
     setTesting(true)
@@ -80,6 +99,11 @@ export function ChangesPanel() {
           <button className="btn" onClick={() => testing ? void dhd().test.cancel() : void runTests()} disabled={!testing && app.projectPath === undefined}>
             {testing ? '取消测试' : '运行测试'}
           </button>
+          {testResult && (testResult.exitCode !== 0 || testResult.timedOut) && (
+            <button className="btn primary" onClick={() => void askAgentToFix()} disabled={askingAgent}>
+              {askingAgent ? '提交中…' : '让 Agent 修复'}
+            </button>
+          )}
         </div>
       )}
       {!diff.trim() ? (

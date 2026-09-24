@@ -31,6 +31,6 @@
 - shared 类型和纯函数已实现；
 - `pnpm test:contract` 覆盖 Agent/user/formatter、冲突、revert、排序和路径拒绝；
 - 已接入 `workspace/changes` Session event 的 changed-path producer，并通过 `agent:event` 投影到 Workbench；ChangesPanel 会按 changed paths 加载当前 Git diff，也可通过 `agent.review` 读取 Host `changes.summary`/`changes.diff` 的前后 diff；watcher observation、冲突和 per-hunk Review 尚未接入；
-- 下一步是接入 test-result-to-turn 关联和 watcher/Git observation producer 到 Workspace Generation，并为 Host 重启、取消和外部写补集成测试。
+- 下一步是持久化 test-result-to-turn 关联、watcher/Git observation producer 到 Workspace Generation，并为 Host 重启、取消和外部写补集成测试；当前失败结果可作为下一轮 Agent feedback turn 提交。
 
 实现依据：[`ADR 0005`](adr/0005-agent-transport-contract.md) 和 [`architecture.md`](architecture.md) 的 Change Projection 章节。

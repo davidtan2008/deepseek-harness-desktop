@@ -324,6 +324,6 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 
 1. 将当前 DHD build-output digest inventory 扩展为与上游 `desktop-runtime.json` 对齐的完整 inventory/hash，并确定 Node、Harness、pnpm、rg 的闭包打包方案。
 2. 在当前 authenticated Session port 上完成外部 provider/model turn smoke，验证 Session log、审批决策、取消/恢复和 Host restart/reconnect；`smoke:native-turn` 已覆盖真实 Harness loop + mock provider，`smoke:upstream-host` 已覆盖真实 Host lifecycle + Session follow。
-3. 将 `workspace/changes` changed paths 接到 before/after diff、watcher 冲突和 Review loop；当前 Workbench 已能按 turn changed paths 加载 Git diff，并通过 `agent.review` 读取 Host 前后 diff、启动固定项目 test command。test-result-to-turn 关联、watcher 冲突和 per-hunk review 仍待接入。保持 `pnpm smoke:workspace` 的真实 Host/session 回归，并补齐 Host 生命周期、PTY 和搜索 fallback 的最小行为测试矩阵。
+3. 将 `workspace/changes` changed paths 接到 before/after diff、watcher 冲突和 Review loop；当前 Workbench 已能按 turn changed paths 加载 Git diff、读取 Host 前后 diff、启动固定项目 test command，并把失败输出作为下一轮 Agent feedback。持久化 test-result-to-turn 关联、watcher 冲突和 per-hunk review 仍待接入。保持 `pnpm smoke:workspace` 的真实 Host/session 回归，并补齐 Host 生命周期、PTY 和搜索 fallback 的最小行为测试矩阵。
 4. 只有 R1 的安装/恢复证据达到退出门后，才把 native Agent surface 设为默认；在此之前继续保留 iframe fallback 和版本化 capability 状态。
 5. 在有可安装、可签名、可回滚的包之前，README 继续使用 `source preview`，不添加虚假的下载 badge。
