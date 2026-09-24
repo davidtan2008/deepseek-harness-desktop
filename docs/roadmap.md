@@ -71,7 +71,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 | 阶段 | 状态 | 当前证据 / 下一步 |
 |---|---|---|
 | R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
-| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物和 packaged fail-closed smoke 已验证；上游 Desktop build 和自动兼容门已通过、启动 smoke 受 Electron 下载环境阻塞；下一步是完成 upstream-first 启动 spike、runtime closure 和安装后验证 |
+| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物和 packaged fail-closed smoke 已验证；上游 Desktop build 和自动兼容门已通过、启动前受本地 optional runtime 缺失阻塞；下一步是完成 upstream-first 启动 spike、runtime closure 和安装后验证 |
 | R2 Agent 原生闭环 | ⏳ 未开始 | 先完成 R1 的 runtime/Host contract，再实现 TransportDriver 和 turn controller |
 | R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
 

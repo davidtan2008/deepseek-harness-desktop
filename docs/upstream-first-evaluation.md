@@ -36,7 +36,7 @@
 ## 当前 Spike 证据（2026-09-24）
 
 - `pnpm --dir harness --filter @deepseek-ai/dsh-desktop build`：通过；上游 Desktop 的 TypeScript、tsdown 和 welcome bundle 均成功生成。
-- `pnpm --dir harness dev:desktop`：已尝试；上游依赖构建阶段通过，但本机在 `Downloading Electron binary...` 阶段退出，未形成可用的启动/Host smoke 证据。该结果不计为上游 Desktop 已验证。
+- `pnpm --dir harness dev:desktop`：已尝试；第一次运行在 `Downloading Electron binary...` 阶段退出；使用 `ELECTRON_MIRROR` 重试后上游构建通过，但启动前因本地缺少 `@anthropic-ai/claude-agent-sdk-darwin-arm64`（`ENOENT`）退出，未形成可用的启动/Host smoke 证据。该结果不计为上游 Desktop 已验证。
 - 当前只验证了 macOS arm64 的上游 build；上游 Host 的 Windows/Linux 行为仍未验证。
 
 因此当前决策仍是“保留 DHD iframe fallback，先完成可重复的上游启动 spike”，而不是直接删除现有 adapter。
