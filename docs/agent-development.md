@@ -93,6 +93,7 @@ pnpm dev
 pnpm install --frozen-lockfile
 pnpm doctor:env
 pnpm dev
+pnpm smoke:workspace
 pnpm typecheck
 pnpm test:contract
 pnpm build
@@ -111,7 +112,7 @@ git diff --check
 | 搜索/watcher | `pnpm typecheck`、`pnpm build` | 真实大仓库、rg 失败 fallback、取消和 fd 检查 |
 | UI 状态 | `pnpm typecheck`、`pnpm build` | 实际窗口中的打开、保存、切换、失败态 |
 | 打包配置 | `pnpm build` | 目标原生安装包 smoke；开发构建不能代替它 |
-| Harness pin | 先在 `harness/` 构建 | Host 启动、workspace sync、session resume 和版本记录 |
+| Harness pin | 先在 `harness/` 构建 | `pnpm smoke:workspace` 验证 workspace/session idempotency；再记录 Host 启动、session resume 和版本 |
 
 ## 6. 修改工作流
 

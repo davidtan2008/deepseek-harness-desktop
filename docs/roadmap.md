@@ -324,6 +324,6 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 
 1. 将当前 DHD build-output digest inventory 扩展为与上游 `desktop-runtime.json` 对齐的完整 inventory/hash，并确定 Node、Harness、pnpm、rg 的闭包打包方案。
 2. 完成 upstream Desktop Session/workspace smoke：验证结构化 Host IPC、Profile/runtime preflight 和真实工作区切换；更新 [`upstream-first-evaluation.md`](upstream-first-evaluation.md) 与 ADR 0004。
-3. 为 Host 生命周期、workspace sync、PTY 和搜索 fallback 建最小行为测试矩阵；`pnpm upstream:check` 保持进入 contract gate。
+3. 保持 `pnpm smoke:workspace` 的真实 Host/session 回归，并补齐 Host 生命周期、PTY 和搜索 fallback 的最小行为测试矩阵；`pnpm upstream:check` 保持进入 contract gate。
 4. 只有 R1 的安装/恢复证据达到退出门后，才在 R2 实现“Host IPC bridge + TransportDriver + turn controller”，并写 ADR。
 5. 在有可安装、可签名、可回滚的包之前，README 继续使用 `source preview`，不添加虚假的下载 badge。

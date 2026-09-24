@@ -42,6 +42,7 @@ pnpm doctor:env      # 检查 Node、pnpm、submodule、native/runtime 前置条
 pnpm upstream:check  # 检查 Harness Desktop Host seam 和 protocol version
 pnpm typecheck       # 先构建 shared，再检查所有 workspace
 pnpm test:contract   # capability manifest + IPC/preload + upstream contract checks
+pnpm smoke:workspace # 真实 Host workspace/session idempotency（macOS arm64）
 pnpm build           # shared -> workbench -> shell
 pnpm pack            # 当前平台 electron-builder
 pnpm pack:mac

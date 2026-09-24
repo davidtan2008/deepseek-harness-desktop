@@ -41,6 +41,7 @@ pnpm install --frozen-lockfile
 pnpm doctor:env
 pnpm upstream:check
 pnpm dev
+pnpm smoke:workspace
 pnpm typecheck
 pnpm test:contract
 pnpm build

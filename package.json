@@ -34,6 +34,7 @@
     "runtime:manifest:packaged": "node scripts/generate-runtime-manifest.mjs packaged",
     "release:check": "pnpm build && pnpm runtime:manifest:packaged && node scripts/check-release-runtime.mjs",
     "upstream:check": "node scripts/check-upstream-desktop.mjs",
+    "smoke:workspace": "node scripts/smoke-workspace.mjs",
     "build": "pnpm --filter @dhd/shared build && pnpm --filter @dhd/workbench build && pnpm --filter @dhd/shell build && pnpm runtime:manifest",
     "docs:check": "node scripts/check-docs.mjs",
     "test:contract": "pnpm runtime:manifest && pnpm --filter @dhd/shared build && node scripts/check-capabilities.mjs && node scripts/check-ipc-contract.mjs && node scripts/check-upstream-desktop.mjs",

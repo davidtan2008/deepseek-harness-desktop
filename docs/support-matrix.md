@@ -12,6 +12,7 @@
 | 源码开发模式 | 已验证 | `pnpm install` → `pnpm dev`；需要本机 Node 22.19+ 和可运行的 Harness checkout |
 | 上游 Desktop build spike | 部分验证 | macOS arm64 build、启动 ready、graceful quit 和 `pnpm upstream:check` 通过；启动期间有 bounded HTTP 503 warning，Session/workspace 和其他平台仍未验证 |
 | 外部 Host 复用 | 已实现未自动化 | `DHD_HARNESS_URL` 解析后不由桌面终止；workspace sync 需要 token |
+| Workspace/session sync | 已验证（macOS arm64） | `pnpm smoke:workspace` 通过真实 Host RPC 验证 `workspace/create` 幂等、session 创建/复用和无残留退出；DHD Renderer 注入仍依赖 iframe 私有 storage seam |
 | Runtime manifest | 已验证 | `pnpm runtime:manifest` / `packaged` 生成，包含 DHD build-output digest；`doctor:env` 和 `app.capabilities.runtime` 可读取 |
 | Packaged runtime preflight | 已验证 | macOS arm64 packaged app 在 `bundled.* = false` 时保持启动但拒绝启动外部 Host，无新增 `dsh web` 进程 |
 | 打包脚本 | 已验证（macOS arm64）/未发行 | electron-builder unpacked、zip、DMG 已验证；未配置 notarization，Windows/Linux 未验证 |
