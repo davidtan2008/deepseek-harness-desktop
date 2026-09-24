@@ -1,4 +1,6 @@
 export * from './protocol.js'
+export * from './capabilities.js'
+export * from './api.js'
 
 export const PRODUCT_NAME = 'DeepSeek Harness Desktop'
 export const PRODUCT_ID = 'deepseek-harness-desktop'

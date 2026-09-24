@@ -10,6 +10,7 @@ const READY = /dsh web:\s*(https?:\/\/[^\s]+)/
 const DEFAULT_ORIGIN = 'http://127.0.0.1:3080'
 
 export type HostListener = (state: HostState) => void
+export type HostMode = 'managed' | 'external'
 
 function which(bin: string): string | undefined {
   const pathEnv = process.env.PATH ?? ''
@@ -35,9 +36,17 @@ function resolveNode(): string {
   return common.find((p) => existsSync(p)) ?? 'node'
 }
 
+function isAllowedHostUrl(parsed: URL): boolean {
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  const host = parsed.hostname.toLowerCase()
+  const loopback = host === '127.0.0.1' || host === 'localhost' || host === '::1' || host === '[::1]'
+  return loopback || process.env.DHD_ALLOW_REMOTE_HOST === '1'
+}
+
 function parseReadyUrl(raw: string): HostState | undefined {
   try {
     const parsed = new URL(raw)
+    if (!isAllowedHostUrl(parsed)) return undefined
     return {
       status: 'ready',
       url: raw,
@@ -126,6 +135,7 @@ function signalTree(child: ChildProcess, signal: NodeJS.Signals): void {
 export class HostProcess {
   private child: ChildProcess | undefined
   private owned = false
+  private mode: HostMode = 'managed'
   private stopping = false
   private lifecycleToken = 0
   private stopPromise: Promise<void> | undefined
@@ -143,6 +153,10 @@ export class HostProcess {
     return this.state
   }
 
+  getMode(): HostMode {
+    return this.mode
+  }
+
   async start(): Promise<HostState> {
     if (this.stopPromise) await this.stopPromise
     if (this.stopping) return this.state
@@ -151,6 +165,7 @@ export class HostProcess {
     this.set({ status: 'starting' })
     this.buffer = ''
     this.owned = false
+    this.mode = 'managed'
 
     const adopted = await this.adoptExisting()
     if (this.stopping || token !== this.lifecycleToken) {
@@ -212,6 +227,7 @@ export class HostProcess {
     if (fromEnv) {
       const ready = parseReadyUrl(fromEnv)
       if (ready) {
+        this.mode = 'external'
         this.set(ready)
         return true
       }
@@ -240,6 +256,7 @@ export class HostProcess {
     const env: NodeJS.ProcessEnv = { ...process.env, DSH_HOME: dshHome, DHD_DESKTOP: '1' }
     delete env.ELECTRON_RUN_AS_NODE
     this.owned = true
+    this.mode = 'managed'
     let child: ChildProcess
     try {
       child = spawn(command, args, {

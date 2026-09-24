@@ -1,11 +1,13 @@
-# DeepSeek Harness Desktop — 原型、架构与落地路线图
+# DeepSeek Harness Desktop — 原型、架构与落地路线图（历史设计稿）
+
+> **重要：** 本文保留最初的原型、技术选型和决策背景，曾把未来阶段写成“已实现”，不再代表当前代码状态。当前事实以 [`architecture.md`](architecture.md) 和 [`support-matrix.md`](support-matrix.md) 为准；新的产品路线、阶段门和生态策略见 [`roadmap.md`](roadmap.md) 与 [`market-research.md`](market-research.md)。
 
 | 项 | 内容 |
 |---|---|
-| 状态 | **P0–P3 已实现**（代码在本仓库根目录，独立仓库 `deepseek-harness-desktop`） |
+| 状态 | **历史设计稿**；当前版本和能力边界见 as-built 文档 |
 | 日期 | 2026-09-01（初稿）/ 2026-09-23（仓库化整理） |
 | 产品名（暂定） | DeepSeek Harness Desktop（下文简称 **DHD**） |
-| 上游 | [DeepSeek Harness](https://www.deepseek.com/harness/) `v0.1.2-alpha.3`，开发者预览版 |
+| 上游 | [DeepSeek Harness](https://www.deepseek.com/harness/)；当前 gitlink `00102833dfaee1da9f48a3a8eae9d34005a75218` / `dsh-v0.1.7-alpha.2`，开发者预览版 |
 | 源码 | `harness/`（git submodule，锁 commit；上游 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)） |
 | 对标 | Cursor 桌面 IDE 的核心工作流，而非像素级复制 |
 | 平台 | macOS、Windows、Linux |
@@ -44,7 +46,9 @@
 
 ## 2. 现状：上游已经有什么
 
-DeepSeek Harness 是 **Node + Cordis 插件树**，不是静态站点。官方只提供 Web / CLI / SDK / ACP，**没有桌面版**。但 `dsh-host-webserver` 文档已经写明预留路径：
+DeepSeek Harness 是 **Node + Cordis 插件树**，不是静态站点。本文初稿写作时把“官方没有桌面版”作为假设；当前 pin 已包含上游 `apps/desktop` 源码实现。DHD 仍保持独立社区项目身份，当前实现边界以 [support-matrix.md](support-matrix.md) 为准。
+
+上游 `dsh-host-webserver` 文档曾预留 Electron 路径：
 
 > Electron loads dist over `file://` and carries fetch over an IPC bridge.
 

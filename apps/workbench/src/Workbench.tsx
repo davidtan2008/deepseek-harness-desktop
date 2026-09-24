@@ -202,6 +202,9 @@ export function Workbench() {
           {app.host.status === 'ready' ? 'Host ready' : app.host.status}
           <button onClick={() => void dhd().host.restart()}>重启 Host</button>
         </span>
+        <span title="Desktop capability contract for adapters and extensions">
+          {app.capabilities ? `adapter v${app.capabilities.contractVersion} · ${app.capabilities.surface}` : 'adapter contract'}
+        </span>
         <span>
           <button>{app.settings.sandboxMode}</button>
           <button>{app.settings.defaultPreset}</button>

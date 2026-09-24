@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible DHD desktop or workbench problem
+title: "[bug] "
+labels: ["kind:bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: Do not paste API keys, Host tokens, or unredacted `DSH_HOME` contents.
+  - type: input
+    id: version
+    attributes:
+      label: DHD version / commit
+      placeholder: 0.1.0 / f163779
+    validations:
+      required: true
+  - type: input
+    id: harness
+    attributes:
+      label: Harness commit / version
+      placeholder: 00102833d / dsh-v0.1.7-alpha.2
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS, Windows, Linux]
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Node and pnpm versions
+      placeholder: Node 24.x; root pnpm 10.x; Harness pnpm 11.x
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Launch mode
+      options: [source checkout, packaged build, external DHD_HARNESS_URL]
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Host/lifecycle, Workbench/editor, Search, Terminal/PTY, Git, Agent surface, Plugin/MCP, Packaging/update]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal steps that reproduce the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or screenshots
+      description: Include the failing stage and relevant error, with secrets removed.

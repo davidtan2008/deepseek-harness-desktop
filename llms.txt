@@ -1,0 +1,75 @@
+# DeepSeek Harness Desktop (DHD)
+
+> Unofficial, local-first Electron workbench built around a pinned DeepSeek Harness checkout. This repository is not the official DeepSeek Desktop application and is not endorsed by DeepSeek. Current distribution status: source preview.
+
+## Start here
+
+- [README.md](README.md): product positioning, source quick start, current limits.
+- [docs/README.md](docs/README.md): documentation question-to-owner index.
+- [docs/market-research.md](docs/market-research.md): official philosophy, paper interpretation, competitor matrix, positioning decisions.
+- [docs/architecture.md](docs/architecture.md): as-built processes, contracts, lifecycle, target seams.
+- [docs/roadmap.md](docs/roadmap.md): outcome-based phases and exit gates.
+- [docs/agent-development.md](docs/agent-development.md): workflow for AI coding agents and parallel worktrees.
+- [docs/support-matrix.md](docs/support-matrix.md): evidence-based current capability matrix.
+- [AGENTS.md](AGENTS.md): standing repository rules.
+- [CLAUDE.md](CLAUDE.md): pointer to the same standing rules.
+
+## Product invariants
+
+1. DeepSeek Harness owns the Agent loop, tools, Skills, MCP, approvals, sandbox, and append-only Sessions.
+2. Electron Main owns windows, platform services, process supervision, and typed IPC; it does not execute Agent tools.
+3. Renderer has no Node integration and uses only the preload `DesktopApi` whitelist.
+4. Model-visible context must remain reconstructable from the Harness Session log.
+5. Every process, watcher, search, PTY, subscription, and Host generation needs an owner and a dispose/await path.
+6. Source/dev, packaged, signed, and released are different states; do not claim a capability without evidence.
+
+## Current implementation
+
+- `apps/shell`: Electron Main, Host supervisor, fs/git/search/pty/mcp/credentials, typed preload, shutdown coordinator.
+- `apps/workbench`: React/Monaco/xterm workbench with file tree, editor, terminal, Git, search, command palette, settings, and an Agent `<iframe>`.
+- `packages/shared`: `protocol.ts`, `api.ts`, and versioned `capabilities.ts` are the cross-process contract source.
+- `harness/`: pinned upstream gitlink; do not edit it in desktop feature branches.
+
+The Agent surface is currently a tokenized Harness Web UI iframe. Workspace sync uses private Host HTTP routes and iframe storage injection; these are compatibility seams, not stable public plugin APIs. The current Changes panel is repository-level Git diff, not per-turn Agent diff. The current package does not bundle a complete Harness/Node runtime and has no signed release evidence.
+
+## Commands
+
+```sh
+pnpm install --frozen-lockfile
+pnpm doctor:env
+pnpm dev
+pnpm typecheck
+pnpm build
+git diff --check
+```
+
+There is currently no outer `pnpm test` or Playwright suite. Do not report typecheck/build as runtime tests.
+
+## Development isolation
+
+For concurrent coding agents, use separate worktrees and unique values:
+
+```sh
+DSH_HOME="$(mktemp -d)" \
+DHD_USER_DATA="$(mktemp -d)" \
+DHD_WORKBENCH_PORT=5183 \
+DHD_ALLOW_MULTIPLE=1 \
+pnpm dev
+```
+
+`DHD_HARNESS_URL` adopts a loopback external Host; the desktop does not terminate an adopted Host. `DHD_ALLOW_REMOTE_HOST=1` is an explicit unsafe override for diagnostics. Never commit credentials.
+
+## Extension and Agent vocabulary
+
+- Harness subagent/fork/workflow/ACP/CLI providers are upstream capabilities.
+- Experimental Agent Teams are opt-in, one-process, shared-checkout coordination; `writeScopes` are advisory.
+- Desktop-native roster, jobs, turn diff, provider selection, and worktree isolation are roadmap work, not current claims.
+- New cross-process behavior must update `protocol.ts`, `api.ts`, Main handlers, preload, Renderer, docs, and tests together.
+
+## Upstream and research
+
+- Official Harness: https://www.deepseek.com/harness/en/
+- Official source: https://github.com/deepseek-ai/deepseek-harness
+- Cordis paper: https://arxiv.org/abs/2608.25512
+- Harness architecture: https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md
+- Experimental Agent Teams: https://github.com/deepseek-ai/deepseek-harness/tree/master/packages/experimental/agent-team

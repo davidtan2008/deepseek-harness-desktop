@@ -19,6 +19,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -28,5 +30,7 @@ jobs:
         env:
           ELECTRON_MIRROR: https://npmmirror.com/mirrors/electron/
       - run: pnpm --filter @dhd/shared build
+      - run: pnpm docs:check
+      - run: pnpm test:contract
       - run: pnpm typecheck
       - run: pnpm build

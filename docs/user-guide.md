@@ -1,5 +1,7 @@
 # 用户指南
 
+> **状态说明（2026-09-24）**：本文描述当前源码预览。Agent 面板仍是 Harness Web UI 的 `<iframe>`；Changes 是仓库级 Git diff；`autoSave`、`defaultModel`、`defaultPreset` 和 `sandboxMode` 中部分设置尚未接入实际行为。完整证据和限制见 [支持矩阵](support-matrix.md)，目标路线见 [路线图](roadmap.md)。
+
 ## 1. 安装与首次启动
 
 当前为源码发行（v0.1.x），安装包分发在路线图中：
@@ -40,7 +42,7 @@ pnpm dev
 | `Cmd/Ctrl+P` | 快速打开文件（Go to File） |
 | `Cmd/Ctrl+Shift+P` | 命令面板 |
 | `Cmd/Ctrl+K` | 行内编辑（选区 + 自然语言指令） |
-| `Cmd/Ctrl+S` / `Cmd/Ctrl+Alt+S` | 保存 / 全部保存（默认自动保存延迟 800ms） |
+| `Cmd/Ctrl+S` / `Cmd/Ctrl+Alt+S` | 保存 / 全部保存（`autoSave` 目前只持久化，尚未实现自动写入） |
 | `Cmd/Ctrl+W` | 关闭当前 Tab |
 | `Cmd/Ctrl+B` | 切换侧边栏 |
 | `Cmd/Ctrl+L` | 切换 Agent 面板 |
@@ -55,7 +57,7 @@ pnpm dev
 
 **Agent 面板**：内嵌完整 `dsh web`——四种 Agent 模式（标准 / PTC / 极简 / 创造）、会话 Trajectory、工具审批、Skills、`@` 引用全部可用。编辑器中选中代码后点击“发送选区”，内容进入剪贴板并尝试注入 Agent 输入框。状态点实时反映 Host 状态（绿=已连接 / 黄=启动中 / 红=错误，悬停看原因）。
 
-**行内编辑（Cmd/Ctrl+K）**：选中代码 → 输入指令（如“加错误处理”）→ DeepSeek 返回替换文本，确认后写回编辑器。需先配置 API Key。
+**行内编辑（Cmd/Ctrl+K）**：选中代码 → 输入指令（如“加错误处理”）→ 当前实现直接调用 DeepSeek Chat Completions 并写回编辑器；它尚未进入 Harness Session、审批或 per-turn diff 流程。需先配置 API Key。
 
 **集成终端**：真实 PTY（node-pty），支持系统默认 shell；环境异常时自动回退（python 桥 → macOS `script` → 管道 shell）。**终端会话常驻**：切换底部 Tab（终端 / 变更 / 问题 / 输出）不会结束 shell——回到终端 Tab 时自动重连并回放离开期间的输出（最多 256KB）；切换项目或关闭窗口才会结束会话。zsh 等登录 shell 加载 dotfiles 需要约 1 秒，首次提示符稍有延迟属正常现象。
 
@@ -73,15 +75,27 @@ pnpm dev
 |---|---|---|
 | 主题 | dark | system 跟随系统 |
 | 字体/字号/缩进 | 系统等宽 / 13 / 2 | 编辑器与终端 |
-| 自动保存 | afterDelay（800ms） | 可关闭 |
-| 沙箱模式 | workspace-write | 对应 Host 的 permission preset |
-| 默认 Agent 模式 | standard | 新会话初始模式 |
-| 默认模型 | deepseek-chat | — |
+| 自动保存 | afterDelay（800ms） | 设置已保存；当前 Workbench 尚未按该值自动写盘 |
+| 沙箱模式 | workspace-write | 桌面偏好；实际 permission preset 仍以 Host/profile 为准 |
+| 默认 Agent 模式 | standard | 桌面显示偏好；尚未证明已转发为 Host effective preset |
+| 默认模型 | deepseek-chat | 桌面显示偏好；实际模型由 Host/provider 配置决定 |
 | 终端 Shell | 系统默认 | 可指定路径 |
 
 设置持久化在 `~/Library/Application Support/deepseek-harness-desktop/settings.json`（macOS；其他平台对应 userData 目录），窗口布局（侧边栏/面板宽度、可见性）一并记忆。
 
-## 6. 数据存储位置
+## 6. 环境变量
+
+| 变量 | 用途 |
+|---|---|
+| `DHD_HARNESS_ROOT` | 指定 Harness checkout |
+| `DHD_HARNESS_URL` | 复用 loopback Host；桌面不会终止外部 Host |
+| `DHD_ALLOW_REMOTE_HOST=1` | 仅诊断时允许远程 Host，正常使用不要开启 |
+| `DHD_USER_DATA` | 隔离开发实例的 Electron userData |
+| `DHD_WORKBENCH_PORT` | 隔离开发实例的 Vite 端口 |
+| `DHD_ALLOW_MULTIPLE=1` | 开发/测试时绕过单实例锁 |
+| `RIPGREP_PATH` | 指定 ripgrep |
+
+## 7. 数据存储位置
 
 | 数据 | 位置 |
 |---|---|
@@ -90,7 +104,7 @@ pnpm dev
 | MCP 配置 | `~/.dsh/desktop-mcp.patch.yml` |
 | 会话日志 / Skills（Host 侧） | `~/.dsh/`（`DSH_HOME` 可覆盖） |
 
-## 7. 常见问题
+## 8. 常见问题
 
 **Agent 面板一直“正在启动”或报错**
 
@@ -129,7 +143,7 @@ pnpm install
 - macOS 关闭窗口默认只关闭工作台，Host 会在 Dock 应用仍存活时继续运行；从 Dock 的“退出”触发完整清理。
 - 退出会先停止项目监听、搜索、终端会话和自有 Harness Host，等待子进程退出后再结束 Electron；不需要手动结束 Vite 或 Host 进程。
 
-## 8. 已知问题与排查记录
+## 9. 已知问题与排查记录
 
 以下问题已在当前版本修复，记录根因供后续排查同类问题参考（架构与生命周期说明见 [docs/architecture.md](architecture.md)）：
 

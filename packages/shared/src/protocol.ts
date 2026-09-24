@@ -1,3 +1,5 @@
+import type { DesktopCapabilities } from './capabilities.js'
+
 export type HostState =
   | { status: 'stopped' }
   | { status: 'starting' }
@@ -154,6 +156,7 @@ export interface SearchProgressEvent {
 export type IpcChannel =
   | 'app.version'
   | 'app.platform'
+  | 'app.capabilities'
   | 'app.settings.get'
   | 'app.settings.set'
   | 'window.minimize'
@@ -164,7 +167,6 @@ export type IpcChannel =
   | 'project.openDialog'
   | 'project.open'
   | 'project.clone'
-  | 'project.get'
   | 'project.recent'
   | 'fs.readDir'
   | 'fs.readFile'
@@ -188,7 +190,6 @@ export type IpcChannel =
   | 'git.checkout'
   | 'git.branches'
   | 'git.log'
-  | 'git.clone'
   | 'pty.acquire'
   | 'pty.write'
   | 'pty.resize'
@@ -205,6 +206,7 @@ export type IpcChannel =
   | 'inlineEdit.run'
   | 'dialog.openFiles'
   | 'dialog.saveFile'
+  | 'shell.openExternal'
 
 export type IpcEventChannel =
   | 'host:changed'
@@ -214,6 +216,7 @@ export type IpcEventChannel =
   | 'menu:command'
   | 'settings:changed'
   | 'search:progress'
+  | 'capabilities:changed'
 
 export interface IpcEventMap {
   'host:changed': HostState
@@ -223,6 +226,7 @@ export interface IpcEventMap {
   'menu:command': string
   'settings:changed': AppSettings
   'search:progress': SearchProgressEvent
+  'capabilities:changed': DesktopCapabilities
 }
 
 export const DEFAULT_WINDOW: WindowState = {

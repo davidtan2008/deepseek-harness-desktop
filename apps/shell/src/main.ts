@@ -1,13 +1,22 @@
 import { app, BrowserWindow, Menu, protocol } from 'electron'
+import { mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { PRODUCT_NAME, PROTOCOL } from '@dhd/shared'
 import { HostProcess } from './host.ts'
-import { registerIpc, stopWatching } from './ipc.ts'
+import { getDesktopCapabilities, registerIpc, stopWatching } from './ipc.ts'
 import { cancelAllSearches } from './search-service.ts'
 import { buildAppMenu } from './menu.ts'
 import { killAllPty } from './pty-service.ts'
 import { loadSettings } from './settings-store.ts'
 import { createWorkbenchWindow } from './windows.ts'
 import { setupUpdater } from './updater.ts'
+
+const userDataOverride = process.env.DHD_USER_DATA?.trim()
+if (userDataOverride) {
+  const userDataPath = resolve(userDataOverride)
+  mkdirSync(userDataPath, { recursive: true, mode: 0o700 })
+  app.setPath('userData', userDataPath)
+}
 
 protocol.registerSchemesAsPrivileged([
   { scheme: PROTOCOL, privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -42,7 +51,7 @@ async function disposeApplication(): Promise<void> {
 
 app.setName(PRODUCT_NAME)
 
-const gotLock = app.requestSingleInstanceLock()
+const gotLock = process.env.DHD_ALLOW_MULTIPLE === '1' || app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
@@ -65,8 +74,12 @@ if (!gotLock) {
       openWindow,
     })
     host.on((state) => {
+      const capabilities = getDesktopCapabilities(host)
       for (const win of windows) {
-        if (!win.isDestroyed() && !win.webContents.isDestroyed()) win.webContents.send('host:changed', state)
+        if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
+          win.webContents.send('host:changed', state)
+          win.webContents.send('capabilities:changed', capabilities)
+        }
       }
     })
     const project = process.argv.find((arg) => arg.startsWith('--folder='))?.slice('--folder='.length)

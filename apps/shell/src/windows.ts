@@ -1,4 +1,4 @@
-import { BrowserWindow, type BrowserWindowConstructorOptions } from 'electron'
+import { BrowserWindow, shell, type BrowserWindowConstructorOptions } from 'electron'
 import { join } from 'node:path'
 import { PRODUCT_NAME, type AppSettings } from '@dhd/shared'
 import { shellRoot, workbenchIndexPath } from './paths.ts'
@@ -27,12 +27,29 @@ export function createWorkbenchWindow(options: WindowOpenOptions): BrowserWindow
       preload: join(shellRoot(), 'dist/preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
-      webviewTag: true,
+      sandbox: true,
+      webviewTag: false,
+      webSecurity: true,
       spellcheck: false,
     },
   }
   const win = new BrowserWindow(opts)
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://')) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    try {
+      const currentUrl = win.webContents.getURL()
+      if (currentUrl === 'about:blank' || currentUrl === url) return
+      const currentOrigin = new URL(currentUrl).origin
+      if (new URL(url).origin === currentOrigin) return
+      event.preventDefault()
+      if (url.startsWith('https://')) void shell.openExternal(url)
+    } catch {
+      event.preventDefault()
+    }
+  })
   if (window.isMaximized) win.maximize()
 
   const rendererUrl = process.env.ELECTRON_RENDERER_URL

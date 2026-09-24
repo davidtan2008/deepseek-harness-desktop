@@ -1,125 +1,146 @@
 # 贡献指南
 
-感谢参与 DeepSeek Harness Desktop 的开发。本文覆盖环境搭建、日常开发、提交规范与上游同步流程。
+感谢参与 DeepSeek Harness Desktop。项目目标是构建一个 **Harness-native、可组合、可恢复、对多个 coding agent 友好的本地 AI workbench**。开始前请先读：
 
-## 环境要求
+- [`AGENTS.md`](AGENTS.md)：给自动化 agent 的常驻规则。
+- [`docs/agent-development.md`](docs/agent-development.md)：完整的阅读顺序、并行 worktree 和交接格式。
+- [`docs/architecture.md`](docs/architecture.md)：当前进程和 contract 真源。
+- [`docs/support-matrix.md`](docs/support-matrix.md)：哪些功能已经有证据。
 
-| 依赖 | 版本 | 说明 |
-|---|---|---|
-| Node.js | 22.19+ 或 24+ | Host 用本机 Node 运行，不使用 Electron 内嵌 Node |
-| pnpm | 10.14.0 | 仓库通过 `packageManager` 字段锁定；`corepack enable` 后自动匹配 |
-| Git | 2.20+ | 需要 submodule 支持 |
+## 环境
 
-国内网络下建议预设 Electron 镜像，避免二进制下载超时：
+| 依赖 | 版本/要求 |
+|---|---|
+| Node.js | `^22.19.0` 或 `>=24` |
+| 根 pnpm | `10.14.0`（由根 `packageManager` 锁定） |
+| Harness pnpm | 以 `harness/package.json` 和其 lockfile 为准，不要与根版本混用 |
+| Git | 支持 submodule 的版本 |
+| 原生依赖 | node-pty 可选；未安装时会走 fallback |
+
+## 初始化
+
+```sh
+git clone --recursive git@github.com:davidtan2008/deepseek-harness-desktop.git
+cd deepseek-harness-desktop
+pnpm install
+cd harness && pnpm install && pnpm run build && cd ..
+pnpm dev
+```
+
+如果不需要运行 Agent，可暂时不初始化 Harness；打开项目时会显示 Host 缺失提示。Electron 下载困难时：
 
 ```sh
 export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
-```
-
-## 克隆与初始化
-
-```sh
-# 1. 递归克隆（同时拉取 harness/ 子模块）
-git clone --recursive git@github.com:davidtan2008/deepseek-harness-desktop.git
-cd deepseek-harness-desktop
-
-# 2. 安装桌面端依赖
 pnpm install
-
-# 3. 初始化上游 Harness（作为运行时 Host，首次必做）
-cd harness && pnpm install && pnpm run build && cd ..
 ```
-
-跳过第 3 步应用仍可启动，但 Agent 面板会提示等待 Host。
 
 ## 常用命令
 
-| 命令 | 作用 |
-|---|---|
-| `pnpm dev` | 开发模式：Vite 工作台（5173）+ Electron 壳，自动拉起 Host |
-| `pnpm typecheck` | 全 workspace 类型检查（自动先构建 `@dhd/shared`） |
-| `pnpm build` | 构建 shared → workbench → shell |
-| `pnpm pack` | electron-builder 打包当前平台 |
-| `pnpm pack:mac` / `pack:win` / `pack:linux` | 打包指定平台 |
-| `pnpm --filter @dhd/shell start` | 单独启动 Electron（需先 build） |
-
-## 仓库布局
-
-```
-apps/
-├── shell/               # Electron 主进程（TypeScript + esbuild 打包）
-│   ├── src/             #   主进程源码：窗口/菜单/IPC/服务层
-│   └── scripts/         #   构建与开发启动脚本
-├── workbench/           # 渲染进程（React 18 + Vite 6 + Monaco + xterm）
-packages/
-├── shared/              # 主进程 ↔ 渲染进程共享的类型、协议与常量
-└── desktop-profile/     # dsh overlay（--patch 注入的 cordis.patch.yml）
-harness/                 # 上游 submodule（锁 commit，勿直接修改）
-docs/                    # 设计文档、架构文档、用户指南
-.github/workflows/       # 三平台 CI
+```sh
+pnpm dev             # Vite workbench + Electron shell + Host
+pnpm doctor:env      # 检查 Node、pnpm、submodule、native/runtime 前置条件
+pnpm typecheck       # 先构建 shared，再检查所有 workspace
+pnpm test:contract   # capability manifest + IPC/preload contract checks
+pnpm build           # shared -> workbench -> shell
+pnpm pack            # 当前平台 electron-builder
+pnpm pack:mac
+pnpm pack:win
+pnpm pack:linux
 ```
 
-**边界约定**：
+外层仓库当前没有 `test`、unit 或 Playwright script。新增测试后，必须在文档中记录真实命令；不要将 `typecheck`/`build` 描述为运行时测试。
 
-- 主进程不执行 Agent 工具、不改会话日志；Agent 内核一律走 `harness/` 子进程。
-- 渲染进程无 Node 集成（`nodeIntegration: false`），只通过 preload 白名单 API 访问系统能力；新增能力必须同时更新 `packages/shared/src/protocol.ts` 的 `IpcChannel` / `IpcEventChannel`。
-- `harness/` 内的改动一律走上游 PR 或 `--patch` overlay，禁止在本仓库直接改子模块内容后提交。
+## 代码边界
+
+- `apps/shell`：窗口、菜单、Host supervisor、fs/git/search/pty/mcp/凭证、preload 和平台 API。
+- `apps/workbench`：React/Monaco/xterm UI；不能 import Electron 或 Node 私有 API。
+- `packages/shared`：`protocol.ts`、`api.ts`、`capabilities.ts` 是跨进程 contract 真源。
+- `packages/desktop-profile`：当前只作为资源/未来 overlay；`host.ts` 当前实际附加的是 MCP overlay，不要假设 profile 已自动加载。
+- `harness/`：上游 gitlink。禁止在桌面功能分支直接修改并提交；需要上游变化时做 overlay、patch 或上游 PR。
+
+### 新增 IPC
+
+1. 在 `packages/shared/src/protocol.ts` 增加 channel/event 和可序列化 payload。
+2. 在 `packages/shared/src/api.ts` 增加最小 Renderer API。
+3. 在 `apps/shell/src/ipc.ts` 注册 Main handler。
+4. 在 `apps/shell/src/preload.ts` 暴露明确方法，禁止通用 `invoke(channel)`。
+5. 在 Renderer 消费失败、取消和资源清理路径。
+6. 更新架构、用户指南、CHANGELOG，并按改动面运行检查。
+
+## Agent/并行协作
+
+一个写入任务一个 worktree：
+
+```sh
+git worktree add ../dhd-<agent-id> -b agent/<topic>
+cd ../dhd-<agent-id>
+DSH_HOME="$(mktemp -d)" \
+DHD_USER_DATA="$(mktemp -d)" \
+DHD_WORKBENCH_PORT=5183 \
+DHD_ALLOW_MULTIPLE=1 \
+pnpm dev
+```
+
+`DHD_ALLOW_MULTIPLE=1` 仅用于开发/测试。不要让两个写入 agent 共享 checkout、`DSH_HOME`、Electron userData 或端口。锁文件、Harness gitlink、版本和 `packages/shared/src/protocol.ts` 在一个 PR 中应视为 single-writer 文件。
+
+## 检查选择
+
+| 改动 | 最低检查 | 真实流程 |
+|---|---|---|
+| 文档 | 链接、命令真实性、`git diff --check` | 校对 claim 与 support matrix |
+| shared/preload | `pnpm typecheck && pnpm build` | 三方 contract 覆盖检查 |
+| Host/PTY/退出 | 同上 | 启动、重启、取消、关闭、残留进程 |
+| 搜索/watcher | 同上 | 大仓库、rg 失败 fallback、取消、fd |
+| UI | 同上 | 实际窗口操作和失败态 |
+| 打包 | `pnpm build` | 目标原生安装包 smoke；开发包不能代替 |
+| Harness pin | 先在 `harness/` 构建 | ready、workspace sync、preset、Session resume |
+
+## Harness pin 更新 SOP
+
+Harness 是 developer preview，更新 gitlink 必须独立提交：
+
+```sh
+git submodule update --remote harness
+cd harness
+pnpm install && pnpm run build
+cd ..
+pnpm typecheck && pnpm build
+```
+
+然后重新核对：
+
+- `dsh web` 启动参数和 ready line；
+- token/cookie 和 workspace/session route；
+- iframe bootstrap 与当前选中 Session 的存储键；
+- preset、subagent、Team、Session format；
+- `DHD_HARNESS_URL` 外部 Host 行为；
+- 退出时自有 Host 的进程组清理。
+
+更新 `docs/support-matrix.md`、CHANGELOG 和回滚说明；不要把 pin bump 与无关 UI 功能混在一起。
 
 ## 提交规范
 
-使用 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)，与现有历史保持一致：
+使用 Conventional Commits：
 
-```
+```text
 <type>(<scope>): <subject>
-
-<body>
 ```
 
-| type | 用途 |
-|---|---|
-| `feat` | 新功能（scope 用包名，如 `feat(shell)`、`feat(workbench)`） |
-| `fix` | 缺陷修复 |
-| `docs` | 文档 |
-| `build` | 构建、依赖、submodule 指针 |
-| `chore` | 脚手架、工具链、CI |
-| `refactor` | 重构（不改变行为） |
+type：`feat`、`fix`、`docs`、`refactor`、`build`、`test`、`chore`。subject 使用英文祈使句，正文说明动机、行为和限制。
 
-要求：subject 用英文祈使句、不超过 50 字符；body 说明动机与影响。提交前确保 `pnpm typecheck && pnpm build` 通过。
-
-## 分支与 PR
-
-1. 从 `main` 切出特性分支：`feat/<topic>`、`fix/<topic>`
-2. 推送并创建 PR（模板见 `.github/PULL_REQUEST_TEMPLATE.md`）
-3. CI（macOS / Ubuntu / Windows 三平台 typecheck + build）全绿后合并
-4. 保持提交原子化，避免“巨型提交”
-
-## 更新上游 Harness（submodule SOP）
-
-父仓库记录的只是子模块的 commit 指针（gitlink），**更新 = 移动指针并提交**。完整流程：
+提交前：
 
 ```sh
-# 1. 拉取并检出上游 master 最新 commit（只动子模块内部）
-git submodule update --remote harness
-
-# 2. 验证新版本可用（重要：上游是开发者预览版，承诺有破坏性变更）
-cd harness
-pnpm install && pnpm run build
-ls apps/cli/src/bin.ts        # 桌面端探测的入口必须存在
-cd ..
-pnpm typecheck && pnpm build  # 桌面端回归
-
-# 3. 把新指针写入父仓库历史（缺了这步，别人 clone 拿到的还是旧版本）
-git add harness
-git commit -m "build: bump harness submodule to <版本号>"
-git push
+pnpm docs:check
+pnpm typecheck
+pnpm test:contract
+pnpm build
+git diff --check
+git status --short
 ```
 
-只执行第 1 步的后果：`git status` 永远显示 `modified: harness (new commits)`，仓库历史锁定的仍是旧 commit，CI 与其他人不受影响。回滚用 `git checkout <旧commit> -- harness && git commit`。
+PR 中列出实际执行的命令、未执行的平台验证、关联 issue 和文档更新。不要提交真实 API key、用户路径、DSH_HOME、Electron userData 或 `harness/` 未说明的本地改动。
 
-## 发布流程
+## 安全报告
 
-1. 更新根 `package.json` 与各子包 `version`
-2. 在 `CHANGELOG.md` 补充版本条目
-3. `git commit -m "chore: release v<x.y.z>" && git tag -a v<x.y.z> -m "..."`
-4. `git push --follow-tags`
-5. CI 通过后本地 `pnpm pack:mac` 等产出安装包，上传 GitHub Release（electron-builder 已配置 `publish: github`，签名流水线就绪后可全自动）
+不要在公开 Issue 报告漏洞。请使用 [SECURITY.md](SECURITY.md) 中的私密渠道；安全修复优先于功能发布。

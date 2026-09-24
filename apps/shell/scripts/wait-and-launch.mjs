@@ -5,7 +5,9 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 const require = createRequire(import.meta.url)
 const electronBin = require('electron')
-const url = process.env.ELECTRON_RENDERER_URL ?? 'http://127.0.0.1:5173'
+const requestedPort = Number.parseInt(process.env.DHD_WORKBENCH_PORT ?? '5173', 10)
+const rendererPort = Number.isSafeInteger(requestedPort) && requestedPort > 0 && requestedPort < 65536 ? requestedPort : 5173
+const url = process.env.ELECTRON_RENDERER_URL ?? `http://127.0.0.1:${rendererPort}`
 
 async function waitForRenderer() {
   for (let i = 0; i < 80; i += 1) {

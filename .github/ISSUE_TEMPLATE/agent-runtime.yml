@@ -1,0 +1,46 @@
+name: Agent runtime or provider issue
+description: Report a problem with subagents, workflows, Teams, ACP, or an external provider
+title: "[agent] "
+labels: ["area:agent-surface", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: This form covers upstream Harness semantics as observed through DHD. If the root cause is entirely in the upstream Agent loop/session/provider, the issue may be redirected to `deepseek-ai/deepseek-harness`.
+  - type: input
+    id: harness
+    attributes:
+      label: Harness commit / version
+    validations:
+      required: true
+  - type: dropdown
+    id: route
+    attributes:
+      label: Agent route
+      options: [one-shot subagent, continuable subagent, fork, workflow, experimental Agent Team, ACP, Codex/Claude provider, DSH SDK/CLI, other]
+    validations:
+      required: true
+  - type: input
+    id: preset
+    attributes:
+      label: Preset / model / permission
+      placeholder: standard / provider / workspace-write
+    validations:
+      required: true
+  - type: textarea
+    id: topology
+    attributes:
+      label: Topology and isolation
+      description: State whether agents share a checkout, process, Host, and Session; include any worktree or external-process details.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted Trajectory/events/logs
+      description: Include session IDs or event types, but no tokens, API keys, or private message content.

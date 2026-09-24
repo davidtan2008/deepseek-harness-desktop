@@ -1,4 +1,6 @@
-export function dhd() {
+import type { DesktopApi } from '@dhd/shared'
+
+export function dhd(): DesktopApi {
   if (!window.dhd) {
     throw new Error('Desktop bridge is unavailable. Run this UI inside Electron.')
   }

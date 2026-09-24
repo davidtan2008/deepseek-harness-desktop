@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: DeepSeek Harness runtime issue
+    url: https://github.com/deepseek-ai/deepseek-harness/issues
+    about: Agent loop, Session format, core tools, providers, and Harness plugins belong upstream.
+  - name: Private security report
+    url: https://github.com/davidtan2008/deepseek-harness-desktop/security/advisories/new
+    about: Do not report vulnerabilities in a public Issue.

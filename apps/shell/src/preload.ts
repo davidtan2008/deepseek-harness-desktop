@@ -1,7 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppSettings,
+  DesktopApi,
+  DesktopCapabilities,
   FileSearchHit,
+  IpcChannel,
   IpcEventMap,
   McpServerConfig,
   PtyAcquireResult,
@@ -9,102 +12,115 @@ import type {
   WorkspaceSyncResult,
 } from '@dhd/shared'
 
-const api = {
-  invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+const invoke = <T>(channel: IpcChannel, ...args: unknown[]): Promise<T> =>
+  ipcRenderer.invoke(channel, ...args) as Promise<T>
+
+const eventChannels = new Set<keyof IpcEventMap>([
+  'host:changed',
+  'pty:data',
+  'pty:exit',
+  'fs:changed',
+  'menu:command',
+  'settings:changed',
+  'search:progress',
+  'capabilities:changed',
+])
+
+const api: DesktopApi = {
   on<K extends keyof IpcEventMap>(channel: K, listener: (payload: IpcEventMap[K]) => void) {
+    if (!eventChannels.has(channel)) throw new Error(`Unsupported event channel: ${String(channel)}`)
     const wrapped = (_event: unknown, payload: IpcEventMap[K]) => listener(payload)
     ipcRenderer.on(channel, wrapped)
     return () => ipcRenderer.removeListener(channel, wrapped)
   },
   app: {
-    version: () => ipcRenderer.invoke('app.version') as Promise<string>,
-    platform: () => ipcRenderer.invoke('app.platform') as Promise<NodeJS.Platform>,
+    version: () => invoke('app.version') as Promise<string>,
+    platform: () => invoke('app.platform') as Promise<NodeJS.Platform>,
+    capabilities: () => invoke('app.capabilities') as Promise<DesktopCapabilities>,
     settings: {
-      get: () => ipcRenderer.invoke('app.settings.get') as Promise<AppSettings>,
-      set: (patch: Partial<AppSettings>) => ipcRenderer.invoke('app.settings.set', patch) as Promise<AppSettings>,
+      get: () => invoke('app.settings.get') as Promise<AppSettings>,
+      set: (patch: Partial<AppSettings>) => invoke('app.settings.set', patch) as Promise<AppSettings>,
     },
   },
   window: {
-    minimize: () => ipcRenderer.invoke('window.minimize'),
-    maximize: () => ipcRenderer.invoke('window.maximize'),
-    close: () => ipcRenderer.invoke('window.close'),
-    new: (projectPath?: string) => ipcRenderer.invoke('window.new', projectPath),
-    setTitle: (title: string) => ipcRenderer.invoke('window.setTitle', title),
+    minimize: () => invoke('window.minimize'),
+    maximize: () => invoke('window.maximize'),
+    close: () => invoke('window.close'),
+    new: (projectPath?: string) => invoke('window.new', projectPath),
+    setTitle: (title: string) => invoke('window.setTitle', title),
   },
   project: {
-    openDialog: () => ipcRenderer.invoke('project.openDialog') as Promise<string | undefined>,
-    open: (projectPath: string) => ipcRenderer.invoke('project.open', projectPath) as Promise<AppSettings>,
-    clone: (url: string, dest: string) => ipcRenderer.invoke('project.clone', url, dest) as Promise<string>,
-    recent: () => ipcRenderer.invoke('project.recent') as Promise<string[]>,
+    openDialog: () => invoke('project.openDialog') as Promise<string | undefined>,
+    open: (projectPath: string) => invoke('project.open', projectPath) as Promise<AppSettings>,
+    clone: (url: string, dest: string) => invoke('project.clone', url, dest) as Promise<string>,
+    recent: () => invoke('project.recent') as Promise<string[]>,
   },
   fs: {
-    readDir: (dir: string) => ipcRenderer.invoke('fs.readDir', dir),
-    readFile: (file: string) => ipcRenderer.invoke('fs.readFile', file) as Promise<{ text: string; binary: boolean }>,
-    writeFile: (file: string, text: string) => ipcRenderer.invoke('fs.writeFile', file, text),
-    stat: (file: string) => ipcRenderer.invoke('fs.stat', file),
-    mkdir: (dir: string) => ipcRenderer.invoke('fs.mkdir', dir),
-    createFile: (file: string) => ipcRenderer.invoke('fs.createFile', file),
-    rename: (from: string, to: string) => ipcRenderer.invoke('fs.rename', from, to),
-    remove: (target: string) => ipcRenderer.invoke('fs.remove', target),
-    reveal: (target: string) => ipcRenderer.invoke('fs.reveal', target),
+    readDir: (dir: string) => invoke('fs.readDir', dir),
+    readFile: (file: string) => invoke('fs.readFile', file) as Promise<{ text: string; binary: boolean }>,
+    writeFile: (file: string, text: string) => invoke('fs.writeFile', file, text),
+    stat: (file: string) => invoke('fs.stat', file),
+    mkdir: (dir: string) => invoke('fs.mkdir', dir),
+    createFile: (file: string) => invoke('fs.createFile', file),
+    rename: (from: string, to: string) => invoke('fs.rename', from, to),
+    remove: (target: string) => invoke('fs.remove', target),
+    reveal: (target: string) => invoke('fs.reveal', target),
   },
   search: {
-    files: (root: string, query: string) => ipcRenderer.invoke('search.files', root, query) as Promise<string[]>,
+    files: (root: string, query: string) => invoke('search.files', root, query) as Promise<string[]>,
     content: (root: string, query: string, requestId: string) =>
-      ipcRenderer.invoke('search.content', root, query, requestId) as Promise<FileSearchHit[]>,
-    cancel: (requestId: string) => ipcRenderer.invoke('search.cancel', requestId) as Promise<boolean>,
+      invoke('search.content', root, query, requestId) as Promise<FileSearchHit[]>,
+    cancel: (requestId: string) => invoke('search.cancel', requestId) as Promise<boolean>,
   },
   git: {
-    status: (cwd: string) => ipcRenderer.invoke('git.status', cwd),
-    diff: (cwd: string, file?: string, staged?: boolean) => ipcRenderer.invoke('git.diff', cwd, file, staged) as Promise<string>,
-    stage: (cwd: string, files: string[]) => ipcRenderer.invoke('git.stage', cwd, files),
-    unstage: (cwd: string, files: string[]) => ipcRenderer.invoke('git.unstage', cwd, files),
-    commit: (cwd: string, message: string) => ipcRenderer.invoke('git.commit', cwd, message),
-    push: (cwd: string) => ipcRenderer.invoke('git.push', cwd) as Promise<string>,
-    pull: (cwd: string) => ipcRenderer.invoke('git.pull', cwd) as Promise<string>,
-    checkout: (cwd: string, branch: string) => ipcRenderer.invoke('git.checkout', cwd, branch),
-    branches: (cwd: string) => ipcRenderer.invoke('git.branches', cwd) as Promise<string[]>,
-    log: (cwd: string) => ipcRenderer.invoke('git.log', cwd),
+    status: (cwd: string) => invoke('git.status', cwd),
+    diff: (cwd: string, file?: string, staged?: boolean) => invoke('git.diff', cwd, file, staged) as Promise<string>,
+    stage: (cwd: string, files: string[]) => invoke('git.stage', cwd, files),
+    unstage: (cwd: string, files: string[]) => invoke('git.unstage', cwd, files),
+    commit: (cwd: string, message: string) => invoke('git.commit', cwd, message),
+    push: (cwd: string) => invoke('git.push', cwd) as Promise<string>,
+    pull: (cwd: string) => invoke('git.pull', cwd) as Promise<string>,
+    checkout: (cwd: string, branch: string) => invoke('git.checkout', cwd, branch),
+    branches: (cwd: string) => invoke('git.branches', cwd) as Promise<string[]>,
+    log: (cwd: string) => invoke('git.log', cwd),
   },
   pty: {
     acquire: (options: PtyOptions) =>
-      ipcRenderer.invoke('pty.acquire', options) as Promise<PtyAcquireResult>,
-    write: (id: string, data: string) => ipcRenderer.invoke('pty.write', id, data),
-    resize: (id: string, cols: number, rows: number) => ipcRenderer.invoke('pty.resize', id, cols, rows),
-    kill: (id: string) => ipcRenderer.invoke('pty.kill', id),
+      invoke('pty.acquire', options) as Promise<PtyAcquireResult>,
+    write: (id: string, data: string) => invoke('pty.write', id, data),
+    resize: (id: string, cols: number, rows: number) => invoke('pty.resize', id, cols, rows),
+    kill: (id: string) => invoke('pty.kill', id),
   },
   host: {
-    status: () => ipcRenderer.invoke('host.status'),
-    restart: () => ipcRenderer.invoke('host.restart'),
+    status: () => invoke('host.status'),
+    restart: () => invoke('host.restart'),
   },
   workspace: {
     sync: (projectPath: string) =>
-      ipcRenderer.invoke('workspace.sync', projectPath) as Promise<WorkspaceSyncResult | { error: string }>,
+      invoke('workspace.sync', projectPath) as Promise<WorkspaceSyncResult | { error: string }>,
   },
   credentials: {
-    has: () => ipcRenderer.invoke('credentials.has') as Promise<boolean>,
-    set: (value: string) => ipcRenderer.invoke('credentials.set', value),
-    clear: () => ipcRenderer.invoke('credentials.clear'),
+    has: () => invoke('credentials.has') as Promise<boolean>,
+    set: (value: string) => invoke('credentials.set', value),
+    clear: () => invoke('credentials.clear'),
   },
   mcp: {
-    list: () => ipcRenderer.invoke('mcp.list') as Promise<McpServerConfig[]>,
-    save: (servers: McpServerConfig[]) => ipcRenderer.invoke('mcp.save', servers),
+    list: () => invoke('mcp.list') as Promise<McpServerConfig[]>,
+    save: (servers: McpServerConfig[]) => invoke('mcp.save', servers),
   },
   rules: {
-    list: (projectPath: string) => ipcRenderer.invoke('rules.list', projectPath),
+    list: (projectPath: string) => invoke('rules.list', projectPath),
   },
   inlineEdit: {
-    run: (request: unknown) => ipcRenderer.invoke('inlineEdit.run', request),
+    run: (request: unknown) => invoke('inlineEdit.run', request),
   },
   dialog: {
-    openFiles: () => ipcRenderer.invoke('dialog.openFiles') as Promise<string[]>,
-    saveFile: (defaultPath?: string) => ipcRenderer.invoke('dialog.saveFile', defaultPath) as Promise<string | undefined>,
+    openFiles: () => invoke('dialog.openFiles') as Promise<string[]>,
+    saveFile: (defaultPath?: string) => invoke('dialog.saveFile', defaultPath) as Promise<string | undefined>,
   },
   shell: {
-    openExternal: (url: string) => ipcRenderer.invoke('shell.openExternal', url),
+    openExternal: (url: string) => invoke('shell.openExternal', url),
   },
 }
 
 contextBridge.exposeInMainWorld('dhd', api)
-
-export type DesktopApi = typeof api

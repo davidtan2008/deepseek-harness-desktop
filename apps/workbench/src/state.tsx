@@ -13,6 +13,7 @@ import {
   languageFromPath,
   type ActivityId,
   type AppSettings,
+  type DesktopCapabilities,
   type HostState,
   type PanelId,
 } from '@dhd/shared'
@@ -32,6 +33,7 @@ interface AppModel {
   settings: AppSettings
   projectPath?: string
   host: HostState
+  capabilities: DesktopCapabilities | null
   platform: string
   hasKey: boolean
   activity: ActivityId
@@ -68,6 +70,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [settings, setSettingsState] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [projectPath, setProjectPath] = useState<string | undefined>(projectFromUrl())
   const [host, setHost] = useState<HostState>({ status: 'starting' })
+  const [capabilities, setCapabilities] = useState<DesktopCapabilities | null>(null)
   const [platform, setPlatform] = useState('darwin')
   const [hasKey, setHasKey] = useState(false)
   const [activity, setActivity] = useState<ActivityId>('explorer')
@@ -82,16 +85,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let unsubHost: (() => void) | undefined
     let unsubMenu: (() => void) | undefined
     let unsubSettings: (() => void) | undefined
+    let unsubCapabilities: (() => void) | undefined
     // StrictMode double-invokes this effect in dev; without the flag the
     // first (already-cleaned-up) run would subscribe again and leak handlers.
     let cancelled = false
     void (async () => {
       const api = dhd()
-      const [loaded, plat, key, hostState] = await Promise.all([
+      let hostChanged = false
+      let capabilitiesChanged = false
+      unsubHost = api.on('host:changed', (state) => {
+        hostChanged = true
+        setHost(state)
+      })
+      unsubSettings = api.on('settings:changed', setSettingsState)
+      unsubCapabilities = api.on('capabilities:changed', (next) => {
+        capabilitiesChanged = true
+        setCapabilities(next)
+      })
+      unsubMenu = api.on('menu:command', (command) => {
+        window.dispatchEvent(new CustomEvent('dhd-menu', { detail: command }))
+      })
+      const [loaded, plat, key, hostState, capabilityManifest] = await Promise.all([
         api.app.settings.get(),
         api.app.platform(),
         api.credentials.has(),
         api.host.status(),
+        api.app.capabilities(),
       ])
       if (cancelled) return
       setSettingsState(loaded)
@@ -99,18 +118,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPanel(loaded.window.panel)
       setPlatform(plat)
       setHasKey(key)
-      setHost(hostState)
+      if (!hostChanged) setHost(hostState)
+      if (!capabilitiesChanged) setCapabilities(capabilityManifest)
       document.documentElement.dataset.theme = loaded.theme === 'system'
         ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
         : loaded.theme
       const initial = projectFromUrl()
       if (initial) await api.project.open(initial)
       if (cancelled) return
-      unsubHost = api.on('host:changed', setHost)
-      unsubSettings = api.on('settings:changed', setSettingsState)
-      unsubMenu = api.on('menu:command', (command) => {
-        window.dispatchEvent(new CustomEvent('dhd-menu', { detail: command }))
-      })
       setReady(true)
     })()
     return () => {
@@ -118,6 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       unsubHost?.()
       unsubMenu?.()
       unsubSettings?.()
+      unsubCapabilities?.()
     }
   }, [])
 
@@ -215,6 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     settings,
     projectPath,
     host,
+    capabilities,
     platform,
     hasKey,
     activity,
@@ -238,7 +255,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPalette,
     setInlineOpen,
     setHasKey,
-  }), [ready, settings, projectPath, host, platform, hasKey, activity, panel, tabs, activePath, selection, palette, inlineOpen, setSettings, openProject, openFile, closeTab, updateText, save, saveAll])
+  }), [ready, settings, projectPath, host, capabilities, platform, hasKey, activity, panel, tabs, activePath, selection, palette, inlineOpen, setSettings, openProject, openFile, closeTab, updateText, save, saveAll])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

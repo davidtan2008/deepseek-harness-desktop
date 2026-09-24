@@ -1,4 +1,5 @@
-import { BrowserWindow, ipcMain, shell as electronShell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell as electronShell } from 'electron'
+import { createDesktopCapabilities } from '@dhd/shared'
 import type { AppSettings, McpServerConfig, PtyOptions, SearchPhase, WorkspaceSyncResult } from '@dhd/shared'
 import { hasApiKey, setApiKey, clearApiKey } from './credentials.ts'
 import { HarnessApi, seedHarnessSession } from './harness-api.ts'
@@ -20,14 +21,24 @@ export interface IpcContext {
 
 let watcher: ProjectWatcher | undefined
 
+export function getDesktopCapabilities(host: HostProcess): ReturnType<typeof createDesktopCapabilities> {
+  return createDesktopCapabilities({
+    appVersion: app.getVersion(),
+    host: host.getState(),
+    externalHost: host.getMode() === 'external',
+    packaged: app.isPackaged,
+  })
+}
+
 export function stopWatching(): void {
   watcher?.close()
   watcher = undefined
 }
 
 export function registerIpc(ctx: IpcContext): void {
-  ipcMain.handle('app.version', () => process.env.npm_package_version ?? '0.1.0')
+  ipcMain.handle('app.version', () => app.getVersion())
   ipcMain.handle('app.platform', () => process.platform)
+  ipcMain.handle('app.capabilities', () => getDesktopCapabilities(ctx.host))
   ipcMain.handle('app.settings.get', () => loadSettings())
   ipcMain.handle('app.settings.set', (_e, patch: Partial<AppSettings>) => {
     const next = { ...loadSettings(), ...patch, window: { ...loadSettings().window, ...(patch.window ?? {}) } }

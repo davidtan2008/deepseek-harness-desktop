@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- **AI-agent-friendly product and engineering documentation**：新增市场与生态调研、重设计路线图、支持矩阵、架构目标 seam、并行 Agent 开发指南、`llms.txt`、GitHub 增长策略和三份 ADR；README 现在明确 source preview、iframe 边界、上游关系和未实现能力。
+- **版本化 capability contract**：新增 `packages/shared/src/api.ts` 与 `packages/shared/src/capabilities.ts`，通过 `app.capabilities` 暴露 Desktop contract version、Host surface 和能力状态；状态栏显示当前 adapter contract。
+- **多实例开发隔离入口**：支持 `DHD_USER_DATA`、`DHD_WORKBENCH_PORT` 和仅开发使用的 `DHD_ALLOW_MULTIPLE=1`，让不同 coding agent 可在独立 worktree/Harness home 中启动。
+
+### Security
+
+- Renderer 改为 `sandbox: true`，移除未使用的 `webviewTag`，增加 popup 和主 frame 外部导航的受限处理；preload 不再暴露通用 `invoke(channel)`，跨进程 API 统一由 shared `DesktopApi` 约束。
+- 手工 smoke 验证自定义 userData/端口的双实例可同时启动，两个 Electron 主进程收到 SIGINT 后均正常退出且无 Vite/Host 残留。
+- 当前仍未完成的 ProjectBroker、sender/frame 授权、Host token 分离、路径/symlink 限制和签名发行已在 `SECURITY.md` 与路线图中明确列为后续工作，未将源码预览误报为安全发行版。
+
 ### Fixed
 
 - **Electron 搜索 `spawn EBADF` / Git 子进程无法启动**：项目监听器此前通过 chokidar 为大仓库中的每个文件保留持久 fd，耗尽 Electron 的文件描述符后，主进程无法再创建 `rg` 或 `git` 子进程。现改用原生递归 `fs.watch`（不支持递归的平台按目录回退），并在退出时显式关闭监听器。

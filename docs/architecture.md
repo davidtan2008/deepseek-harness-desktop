@@ -1,167 +1,392 @@
-# 架构文档（As-Built）
+# 架构文档（As-Built + Target seams）
 
-> 本文描述**当前代码的实际架构**，与代码同步维护。设计动机与演进路线见 [design.md](design.md)；用户视角的功能说明见 [user-guide.md](user-guide.md)。
+> 本文首先描述当前代码真实存在的架构，再单独标出正在建设的设计缝。当前基线为 `f163779`，Harness gitlink 为 `00102833d`（`dsh-v0.1.7-alpha.2`）。未来目标见 [`roadmap.md`](roadmap.md)，市场与竞品取舍见 [`market-research.md`](market-research.md)。
 
-## 1. 总览
+## 1. 产品不变量
 
+这些规则优先于局部实现便利：
+
+1. **Harness 是 Agent runtime 权威**：Agent loop、模型调用、工具、Skills、MCP、审批、沙箱和 Session log 由上游 Host 拥有。
+2. **Main 不执行 Agent 工具**：Electron Main 只做窗口、平台能力、进程监督、IPC 和桌面服务。
+3. **Renderer 无 Node 权限**：`contextIsolation: true`、`nodeIntegration: false`，只通过 preload 的类型化白名单。
+4. **Session/model-visible context 不复制**：DHD 不建立第二个聊天历史；未来投影必须能回到 Harness Session log。
+5. **所有外部副作用有 owner 和 dispose**：watcher、搜索、PTY、Host、窗口、事件订阅和子进程必须能取消、等待和清理。
+6. **文件不是事务**：Agent 写盘、用户编辑、格式化器和 Git 可能并发；projection 必须检测冲突，不能假装原子提交。
+7. **开发、源码、打包、发行是不同状态**：没有签名和安装后验证的构建只能称为 source/preview。
+8. **Harness pin 是兼容面**：Host 命令、ready line、HTTP route、preset、Session format 和 localStorage key 都必须随 pin 复核。
+
+## 2. 当前拓扑
+
+```mermaid
+flowchart LR
+  User[用户] --> Main[Electron Main]
+  Main --> Win[Workbench Renderer]
+  Main -->|spawn / supervise| Host[dsh Host\n外部 Node 进程]
+  Host -->|loopback HTTP + token| Frame[AgentPanel iframe\nHarness Web UI]
+  Main -->|typed IPC| Win
+  Main --> FS[fs / watcher]
+  Main --> Search[rg / JS fallback]
+  Main --> PTY[node-pty / fallback]
+  Main --> Git[git CLI]
+  Main --> Cred[safeStorage + DSH_HOME]
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Electron Main（apps/shell）                                     │
-│  窗口/菜单/单实例 · IPC 注册表 · fs/git/search/pty/mcp/凭证服务     │
-└────────────┬──────────────────────────────┬─────────────────────┘
-             │ preload 白名单 IPC            │ spawn (子进程)
-             ▼                              ▼
-┌─────────────────────────────┐   ┌──────────────────────────────┐
-│  Workbench Renderer         │   │  dsh Host（harness/ 子模块）    │
-│  React 18 + Vite 6          │   │  node --import tsx/esm        │
-│  Monaco · xterm · 命令面板    │◄──┤  apps/cli/src/bin.ts web      │
-│  AgentPanel(iframe→Host URL)│   │  --patch <mcp> --port 0       │
-└─────────────────────────────┘   └──────────────────────────────┘
-        iframe 加载 Host URL（loopback HTTP + ?token=）
-```
 
-三个进程各司其职：
+### 2.1 进程职责
 
-| 进程 | 技术栈 | 职责 | 禁止事项 |
+| 进程 | 技术 | 当前职责 | 明确禁止 |
 |---|---|---|---|
-| Main | Electron 36 + TypeScript | 窗口/菜单生命周期、IPC 分发、系统能力服务、拉起并守护 Host | 不执行 Agent 工具、不改会话日志 |
-| Renderer | React 18 + Vite 6 + Monaco + xterm | 工作台 UI、编辑器、终端视图、Agent 面板 | 无 Node 集成，仅 preload 白名单 API |
-| dsh Host | 上游 Harness（Cordis 插件树） | Agent loop、工具执行、沙箱、会话持久化 | 桌面端不 fork、不改其源码 |
+| Main | Electron + TypeScript | 窗口/菜单/单实例、Host supervisor、fs/git/search/pty/mcp/凭证、IPC | 不执行 Agent tool、不改 Session log、不挂载 Cordis |
+| Renderer | React + Vite + Monaco + xterm | 文件树、编辑、搜索/终端/Git 视图、设置、Agent iframe | 不 import Electron/Node，不持有裸 IPC |
+| Host | 上游 Harness + Cordis | Agent loop、工具、模型、Skills、MCP、Session、审批和沙箱 | 不由桌面端 fork 或复制 |
 
-## 2. 模块地图
+### 2.2 当前 Agent surface
 
+`apps/workbench/src/AgentPanel.tsx` 当前用带 token 的 URL 加载 `<iframe>`。它是兼容和功能保真路径，不是已经完成的原生 `dsh-client` 嵌入，也不是 `webviewTag`。
+
+```text
+Host ready URL
+   │
+   ▼
+AgentPanel <iframe src="http://127.0.0.1:<port>/?token=...">
+   │
+   └── 当前完整 Harness Web UI：preset、Trajectory、工具卡、Skills、MCP、Session
 ```
+
+目标是将 transport 和 projection 抽出，使 iframe 可替换；在 contract 测试通过前不删除这条路径。
+
+## 3. 当前代码地图
+
+```text
 apps/shell/src/
-├── main.ts            # 启动：单实例锁(--folder=)、窗口注册表、Host 生命周期、updater
-├── windows.ts         # BrowserWindow：contextIsolation:true / nodeIntegration:false
-│                      #   / webviewTag:true / hiddenInset 标题栏(mac)
-├── menu.ts            # 应用菜单 → 'menu:command' 事件下发给渲染层
-├── ipc.ts             # IPC 注册表（唯一 ipcMain 入口）+ 项目监听生命周期
-├── host.ts            # HostProcess：子进程状态机（见 §4）
-├── harness-api.ts     # Host HTTP RPC 客户端 + iframe 工作区种子注入（见 §6.1）
-├── paths.ts           # 路径解析：harness 探测、DSH_HOME、设置/MCP 文件位置
-├── fs-service.ts      # 目录/文件读写/重命名/删除/系统对话框/在 OS 中显示
-├── git-service.ts     # git CLI 封装：status/diff/stage/commit/push/pull/branch/log
-├── project-watcher.ts  # 原生递归 fs.watch；按目录回退，避免大仓库逐文件占用 fd
-├── search-service.ts  # ripgrep 优先（多路径探测 + --json 流式 + 进度/取消），启动/运行失败回退 JS 遍历
-├── pty-service.ts     # node-pty 集成终端（prebuilds 布局 + 执行位自修复），失败回退 python 桥/script/管道 shell
-├── mcp-service.ts     # MCP server 配置读写 → ~/.dsh/desktop-mcp.patch.yml
-├── settings-store.ts  # 应用设置持久化 → userData/settings.json
-├── credentials.ts     # API Key：safeStorage 加密 + 同步 ~/.dsh/.credentials.yaml
-├── inline-edit.ts     # Cmd+K 行内编辑 → DeepSeek chat/completions
-├── updater.ts         # electron-updater（仅打包后启用，GitHub provider）
-└── preload.ts         # contextBridge 暴露白名单 API（Renderer 唯一入口）
+├── main.ts                 # 单实例、开发实例、窗口注册、Host 启动、shutdown coordinator
+├── windows.ts              # BrowserWindow 安全选项和 workbench 加载
+├── menu.ts                 # 原生菜单 → menu:command
+├── ipc.ts                  # 唯一 ipcMain 注册入口、项目 watcher、能力 manifest
+├── host.ts                 # HostProcess 状态机、ready URL、owned/adopted 生命周期
+├── harness-api.ts          # Host HTTP RPC 和 iframe workspace/session seed
+├── paths.ts                # Harness root、DSH_HOME、userData 和 profile 路径
+├── fs-service.ts           # 文件读写、目录和原生对话框
+├── git-service.ts          # git CLI 封装
+├── project-watcher.ts      # 原生递归 fs.watch，目录级 fallback
+├── search-service.ts       # rg 流式搜索、取消、JS fallback
+├── pty-service.ts          # node-pty 和多级 fallback
+├── mcp-service.ts          # MCP overlay
+├── settings-store.ts       # Desktop settings
+├── credentials.ts          # safeStorage + DSH_HOME credential ref
+├── inline-edit.ts          # Cmd/Ctrl+K 的模型调用
+├── updater.ts              # electron-updater 骨架
+└── preload.ts              # 白名单 API，不暴露通用 invoke
 
 apps/workbench/src/
-├── state.tsx          # AppProvider：React Context 全局状态（EditorTab/Host/设置/面板）
-├── Workbench.tsx      # 五区布局：Activity Bar/Sidebar/Editor/Agent/Panel
-├── Explorer.tsx       # 文件树（fs:changed 驱动刷新）
-├── EditorArea.tsx     # Monaco 多 Tab 编辑器（自动保存、脏标记）
-├── TerminalPanel.tsx  # xterm.js ↔ pty:data/pty:exit 事件流
-├── ScmPanel.tsx       # Git 状态/暂存/提交/推送
-├── SearchPanel.tsx    # 文件名 + 内容搜索
-├── CommandPalette.tsx # Cmd+Shift+P 命令面板 / Cmd+P 快开
-├── InlineEdit.tsx     # Cmd+K 浮层：选区+指令 → inlineEdit.run → 补丁写回
-├── AgentPanel.tsx     # iframe 加载 Host URL；发送选区（剪贴板+postMessage）
-├── SettingsPanels.tsx # 设置/凭证/MCP/Rules 各面板
-├── ChangesPanel.tsx   # 变更视图
-├── Welcome.tsx        # 欢迎/最近项目/克隆仓库
-└── Sash.tsx           # 可拖拽分割条
+├── state.tsx               # Renderer 状态、项目/编辑器/Host 订阅
+├── Workbench.tsx           # Activity Bar、Sidebar、Editor、Panel、Agent
+├── AgentPanel.tsx          # iframe surface 和选区 fallback
+├── EditorArea.tsx           # Monaco 多 Tab
+├── Explorer.tsx            # 文件树
+├── SearchPanel.tsx         # 流式搜索/取消/错误态
+├── TerminalPanel.tsx       # xterm + PTY
+├── ScmPanel.tsx            # Git
+├── ChangesPanel.tsx         # 仓库级 diff
+├── CommandPalette.tsx      # 快开/命令
+├── InlineEdit.tsx           # 行内编辑
+├── SettingsPanels.tsx       # 设置/MCP/Rules
+└── Welcome.tsx              # 打开/克隆/最近项目
 
 packages/shared/src/
-├── protocol.ts        # IPC 通道枚举、事件类型映射、AppSettings/HostState 等契约类型
-└── index.ts           # 常量（PRODUCT_*/PROTOCOL/CREDENTIAL_REF）与工具函数
+├── protocol.ts             # 领域类型、IpcChannel、IpcEventMap
+├── api.ts                  # DesktopApi 唯一类型
+├── capabilities.ts         # 版本化 capability manifest
+└── index.ts                # package 导出
 ```
 
-项目文件监听使用 Node 原生递归 `fs.watch`，不支持递归的平台退回按目录监听；不会为每个文件保留一个持久文件描述符。搜索和 Host 退出都纳入主进程的统一清理流程。
+## 4. 跨进程 contract
 
-## 3. IPC 契约
+### 4.1 类型和通道
 
-契约的**唯一真源**是 `packages/shared/src/protocol.ts`。Renderer 通过 preload 暴露的 `dhd()` API 调用，Main 侧在 `ipc.ts` 集中注册。
+`packages/shared/src/protocol.ts` 是通道和事件类型的真源；`api.ts` 是 Renderer 可见 API 的真源。Main、preload、Renderer 三者必须同步更新。
 
-**请求通道（Renderer → Main，`ipcMain.handle`）**
+新增能力的流程：
 
-| 前缀 | 通道 | 说明 |
-|---|---|---|
-| `app.` | version / platform / settings.get / settings.set | 应用信息与设置 |
-| `window.` | minimize / maximize / close / new / setTitle | 窗口控制 |
-| `project.` | openDialog / open / clone / recent | 项目打开、克隆、最近列表 |
-| `fs.` | readDir / readFile / writeFile / stat / mkdir / createFile / rename / remove / reveal | 文件系统 |
-| `search.` | files / content / cancel | 快开过滤 / 全局内容搜索（流式 + 进度）/ 取消进行中的搜索 |
-| `git.` | status / diff / stage / unstage / commit / push / pull / checkout / branches / log | SCM |
-| `pty.` | acquire / write / resize / kill | 按窗口与项目持有终端会话；acquire 返回重连所需的输出回放 |
-| `host.` | status / restart | Host 查询与重启 |
-| `workspace.` | sync | 把当前项目注册为 harness workspace 并切换 AgentPanel（见 §6.1） |
-| `credentials.` | has / set / clear | API Key |
-| `mcp.` | list / save | MCP 配置 |
-| 其他 | rules.list / inlineEdit.run / dialog.openFiles / dialog.saveFile / shell.openExternal | Rules、行内编辑、对话框、外链 |
-
-**事件通道（Main → Renderer，`webContents.send`）**
-
-| 通道 | 载荷 | 触发源 |
-|---|---|---|
-| `host:changed` | `HostState` | host.ts 状态机每次迁移 |
-| `settings:changed` | `AppSettings` | 设置写入后广播 |
-| `fs:changed` | `{ path, type }` | 原生递归目录监听（忽略 node_modules/.git/dist/out，深度 8） |
-| `pty:data` / `pty:exit` | `{ id, data/exitCode }` | 终端输出与退出 |
-| `search:progress` | `{ requestId, phase, count }` | 流式搜索命中数（250ms 节流），phase: running/done |
-| `menu:command` | `string` | 菜单/快捷键命令（渲染层再以 DOM CustomEvent `dhd-menu` 分发） |
-
-## 4. Host 生命周期（`host.ts`）
-
-状态机：`stopped → starting → ready | error`，每次迁移广播 `host:changed`。
-
-**启动决策**：
-
-1. `DHD_HARNESS_URL` 环境变量存在且合法 → 直接采用（复用已运行的 `dsh web`，含 token）
-2. 否则定位 harness 根目录（`paths.ts` 探测，见 §5），spawn：
-
-```sh
-node --import tsx/esm <harness>/apps/cli/src/bin.ts web [--patch ~/.dsh/desktop-mcp.patch.yml] --no-open --port 0
+```text
+定义可序列化 payload
+  → protocol.ts 增加 IpcChannel / IpcEventMap
+  → api.ts 增加最小 DesktopApi 方法
+  → ipc.ts 注册 handler
+  → preload.ts 只转发白名单方法
+  → Renderer 消费并处理失败/取消
+  → 文档、测试和版本兼容记录
 ```
 
-3. 解析 stdout 中 `dsh web: <url>` 行得到带 token 的 URL → `ready`；90 秒超时或进程先退 → `error`（附诊断提示：3080 端口已有 Host 需带 token 复用、或子模块未 install/build）
+preload 不再暴露 `invoke(channel, ...args)`。Renderer 不能绕过 API 对象直接调用任意 IPC 通道。
 
-**关键细节**：`--patch` 是 launcher 级参数必须紧跟 `web`；`--port 0` 由 OS 分配空闲端口，不与已有 `dsh web` 冲突。桌面退出先停止并等待自有 Host 的进程组退出，再放行 Electron 退出；2 秒未退出时升级 SIGKILL，并再次等待。`DHD_HARNESS_URL` 接入的外部 Host 不由桌面端终止。
+### 4.2 Capability manifest
 
-## 5. Harness 根目录探测（`paths.ts`）
+`app.capabilities` 返回 `DesktopCapabilities`，包含：
 
-| 顺序 | 候选 | 条件 |
+- `contractVersion`：桌面 contract 版本；
+- `appVersion`；
+- `surface`：`managed-iframe` 或 `external-loopback`；
+- Host 是否由桌面拥有及其状态；
+- 每个桌面能力的 `available/degraded/unavailable` 状态和实现说明。
+
+它是“能力发现”入口，不是安全授权。Host 每次状态迁移还会广播 `capabilities:changed`，Renderer 不应把启动时的 snapshot 当作永久事实。未来 adapter/plugin 应读取该 manifest，并明确声明自己支持的能力；未知能力必须返回 `unsupported`，不能静默假装成功。
+
+### 4.3 当前 IPC 分类
+
+| 分类 | 例子 | 所有者 |
 |---|---|---|
-| 1 | `$DHD_HARNESS_ROOT` | 存在即用（显式覆盖） |
-| 2 | `<repo>/harness/`（子模块） | 入口存在**且** `node_modules` 已安装（ready） |
-| 3 | `<repo>/../deepseek/deepseek-harness` | 旧版同级布局，同 ready 条件 |
-| 4 | `<repo>/harness/` | 仅源码也接受（启动时提示 install/build） |
-| 5 | `resources/harness` | 打包产物内置 |
+| 应用/窗口 | version、platform、capabilities、settings、window | Main |
+| 项目/fs | open、read/write、watch、reveal | Main + platform |
+| 搜索 | files、content、progress、cancel | Main |
+| Git | status、diff、stage、commit、push、pull | Main + git CLI |
+| 终端 | acquire、write、resize、kill、data/exit | Main + PTY |
+| Agent/Host | host status/restart、workspace sync | Main + Harness Host |
+| 配置 | credentials、MCP、rules、inline edit | Main + Harness/platform |
 
-"ready" 判定依据：Host 通过 `node --import tsx/esm` 直接运行 TS 源码，tsx 与 workspace 依赖必须能从 harness 的 `node_modules` 解析。
+## 5. 启动、运行和退出时序
 
-## 6. 安全模型
+### 5.1 启动
 
-- **进程隔离**：`contextIsolation: true`、`nodeIntegration: false`；Renderer 只见 `contextBridge` 暴露的白名单方法，通道枚举在共享包中静态收口。
-- **凭证**：API Key 经 `safeStorage` 加密存 `userData/credentials.bin`（回退明文时文件权限 0600），并同步写入 `~/.dsh/.credentials.yaml`（`DEEPSEEK_API_KEY` ref，权限 0600）供 CLI/Host 侧读取。
-- **Agent 沙箱**：沙箱与审批由上游 Host 执行（Linux bwrap/Landlock、macOS Seatbelt、Windows restricted token）；桌面端设置里的 `sandboxMode` 只是对 Host preset 的偏好。
-- **网络边界**：Renderer ↔ Host 只经 loopback；Host URL 含一次性 token（`?token=...`）。
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant M as Main
+  participant W as Renderer
+  participant H as Host
 
-## 6.1 工作区同步（`harness-api.ts`）
+  U->>M: 启动 / --folder=<path>
+  M->>M: 配置 userData、单实例、窗口
+  M->>W: 打开 workbench
+  M->>H: spawn dsh web --no-open --port 0
+  H-->>M: stdout: dsh web: URL?token=...
+  M-->>W: host:changed(ready)
+  W->>M: workspace.sync(project)
+  M->>H: workspace/create + session/create
+  M-->>W: iframe seed / ready
+```
 
-打开项目（或 Host 变为 ready）时，渲染层调用 `workspace.sync(projectPath)`，Main 侧：
+实际顺序是：Main 先注册 IPC、打开窗口，再启动 Host；Host ready 通过事件广播。外部 `DHD_HARNESS_URL` 优先于本地 spawn。
 
-1. 用启动 URL 的 token 走 `GET /?token=...` 换取 Host 的签名会话 cookie（一次性交换，缓存复用）；
-2. 以 Typert Gateway 线格式 `POST /api/workspace/create`（`payload: {args: {request: {path}}}`）注册工作区，workspace 无会话时再 `POST /api/session/create`；
-3. 通过 `WebFrameMain.executeJavaScript` 把 `{sessionId}` 写入 harness iframe 的 `dsh.sessions.current`（web 端的持久化选中态，见上游 `client/store` 的 `attachPersistence`）并 `location.reload()`，web 应用启动恢复逻辑（`restoreSelection`）随即打开该会话；iframe 尚未加载时挂起到 `did-frame-finish-load` 再注入。
+### 5.2 Host 状态机
 
-同一路径重复 sync 幂等（`workspace/create` 内建 `resolveByPath` 复用）。经 `DHD_HARNESS_URL` 采用的无 token Host 无法同步（返回 `host-without-token`，仅控制台告警，不影响使用）。
+```text
+stopped → starting → ready
+                   ↘ error
+ready → stopped（重启/退出）
+```
 
-## 7. 与上游的关系
+- `DHD_HARNESS_URL` 合法：采用 loopback URL，标记为 external，桌面不拥有其进程；非 loopback 只有显式 `DHD_ALLOW_REMOTE_HOST=1` 才会被接受。
+- 否则：探测 Harness root，使用本机 Node 启动 `dsh web`。
+- ready 只由 stdout 的 `dsh web: <url>` 解析确认；启动超时、进程提前退出和无效 URL 进入 error。
+- 自有 Host 退出先 TERM，2 秒后 KILL，并等待真实退出；外部 Host 不由桌面终止。
 
-- 上游以 `harness/` submodule 锁定精确 commit，升级即移动 gitlink（见 [CONTRIBUTING](../CONTRIBUTING.md) 的 SOP）。
-- 桌面定制走 overlay：MCP 配置以 `--patch ~/.dsh/desktop-mcp.patch.yml` 注入，不改上游源码。
-- 数据共享：桌面与 `dsh web` 共用 `~/.dsh`（`DSH_HOME` 可覆盖），凭证、会话、Skills 互通。
+### 5.3 统一退出
 
-## 8. 构建与打包
+`before-quit` 可重入地拦截退出：
 
-- **shell**：esbuild 打包为 ESM（`dist/main.js`）+ CJS preload（`dist/preload.cjs`），electron/electron-updater/node-pty/yaml 外置；`pty-bridge.py` 复制到 dist。
-- **workbench**：Vite 6 静态产物；开发时 Main 经 `ELECTRON_RENDERER_URL` 加载 5173，打包后 `loadFile` 本地 HTML。
-- **electron-builder**：appId `com.deepseek.harness.desktop`；mac（dmg+zip，hardenedRuntime）、win（nsis+zip）、linux（AppImage+deb）；extraResources 携带 workbench 产物、desktop-profile overlay 与 pty-bridge.py；`publish: github` 预留自动更新流。
-- **CI**：三平台矩阵执行 `pnpm install --frozen-lockfile` → shared build → typecheck → build（不依赖 harness 子模块内容）。
+1. 设置 shutdown 状态，停止项目 watcher。
+2. 取消所有搜索并等待清理。
+3. 销毁窗口。
+4. 并行等待 PTY 和自有 Host 退出。
+5. 清理完成后才再次 `app.quit()`。
+
+macOS 关闭最后一个窗口默认不等于退出应用；Dock“退出”才触发完整清理。这是平台语义，不是资源泄漏。
+
+## 6. 数据所有权
+
+| 数据 | 权威 owner | 桌面是否复制 |
+|---|---|---|
+| Agent Session / Trajectory / Tool result | Harness Host / `$DSH_HOME` | 否 |
+| Agent preset、MCP patch、Skills | Harness profile / `$DSH_HOME` | 只生成桌面 overlay |
+| Desktop settings、窗口布局、最近项目 | Electron `userData` | 是，明确独立 |
+| API Key | safeStorage + DSH credential reference | 加密/兼容同步，不进 Session |
+| 编辑器 buffer/dirty state | Renderer | 临时，断线后以磁盘为准 |
+| PTY session | Main，按 window/project owner | 短暂回放 buffer |
+| 项目文件 | 磁盘 | watcher 只发事件，不做事务写入 |
+| Git 状态 | git working tree/index | 缓存可重建 |
+
+同一 `DSH_HOME` 不等于每个 Agent 独立；实验性 Agent Teams 也共享 checkout。需要隔离时必须使用独立 worktree/进程/数据目录。
+
+## 7. 搜索、watcher 和 PTY 的资源原则
+
+### 7.1 Watcher
+
+项目 watcher 使用原生递归 `fs.watch`，只为目录保留监听；不支持递归的平台按目录 fallback。关闭项目、窗口和应用时必须释放。不要恢复“每个文件一个长期 watcher”的实现。
+
+### 7.2 Search
+
+`search-service.ts` 优先使用 `rg --json`，流式报告进度、限制命中数并支持取消。启动失败、同步异常、异步错误或非正常退出必须回退 JavaScript 遍历；UI 区分“搜索失败”和“没有匹配”。
+
+### 7.3 PTY
+
+PTY session 由 Main 按 window/project owner 持有，切换底部 Tab 只分离视图；重新 acquire 时回放有限 buffer。node-pty、Python bridge、`script` 和管道 fallback 都必须把 spawn error、resize 能力和退出码暴露给 UI。
+
+## 8. 安全模型
+
+### 8.1 Renderer
+
+- `contextIsolation: true`
+- `nodeIntegration: false`
+- preload 白名单，无任意 channel invoke
+- URL/Host token 只在当前兼容 iframe 路径使用；未来 transport 应减少 Renderer 持有启动 token
+- 外部链接、目录、文件和 shell 操作由 Main 校验
+
+### 8.2 Host 和工具
+
+Host 仍是执行用户 Agent 工具的 Node 进程。Electron 的 renderer sandbox 不等于 Agent sandbox；审批、权限和 OS sandbox 必须由 Harness/平台真正执行。外部 Host、插件和 MCP 都应视为能影响用户工作区的代码。
+
+### 8.3 凭证和日志
+
+- API Key 使用 safeStorage；兼容文件权限为 0600。
+- 不在 README、fixture、CHANGELOG 或普通日志写 token、key、完整 credential 配置。
+- 错误展示应有界并脱敏；保留启动阶段和可定位原因。
+
+## 9. 目标架构：可替换缝
+
+### 9.1 目标拓扑
+
+```mermaid
+flowchart TB
+  subgraph Presentation[Presentation]
+    UI[Workbench UI]
+    Review[Diff / Review / Jobs]
+  end
+  subgraph Application[Desktop Application]
+    WS[Workspace Generation]
+    Turns[Turn Controller]
+    Caps[Capability Registry]
+    Commands[Command Registry]
+    Projection[Session / Change Projection]
+  end
+  subgraph Adapters[Agent Adapters]
+    Harness[Harness Adapter]
+    ACP[ACP Adapter]
+    CLI[CLI / SDK Adapter]
+  end
+  subgraph Runtime[Harness Runtime]
+    Host[Cordis Host]
+    Sessions[Append-only Sessions]
+    Tools[Tools / Skills / MCP]
+    Policy[Approval / Sandbox]
+  end
+  subgraph Platform[Platform]
+    FS[FS / Watcher]
+    PTY[PTY]
+    Git[Git]
+    Keychain[Keychain]
+  end
+  UI --> WS
+  UI --> Commands
+  Turns --> Adapters
+  Adapters --> Host
+  Host --> Sessions
+  Host --> Tools
+  Tools --> Policy
+  Projection --> Sessions
+  Projection --> FS
+  Projection --> Git
+  WS --> FS
+  WS --> PTY
+  Turns --> Caps
+  Caps --> Adapters
+  Review --> Projection
+```
+
+### 9.2 Workspace Generation
+
+一个项目窗口对应一个 generation，至少拥有：
+
+- project root 和窗口/Host lease；
+- watcher/search/PTY owner；
+- Agent surface 与 session selection；
+- effective settings snapshot；
+- event subscription 和 teardown barrier。
+
+切换项目、关闭窗口、重启 Host 和切换 profile 都必须创建/销毁 generation；旧 generation 的回调不能写入新 UI。
+
+### 9.3 TransportDriver
+
+目标 interface（概念，不是当前已实现 API）：
+
+```ts
+interface TransportDriver {
+  connect(request: ConnectRequest): Promise<Connection>
+  sendTurn(input: TurnInput): Promise<TurnHandle>
+  cancel(turnId: string, reason?: string): Promise<void>
+  resume(sessionId: string): Promise<SessionView>
+  subscribe(listener: (event: AgentEvent) => void): () => void
+  capabilities(): CapabilityManifest
+  dispose(): Promise<void>
+}
+```
+
+实现顺序：现有 loopback/iframe → Host IPC bridge → 外部 ACP/CLI。每个实现都必须有相同 contract test，尤其是取消、重连、事件顺序和 dispose。
+
+### 9.4 Change Projection
+
+```text
+SessionEvent / tool result
+          +
+watcher / Git status
+          ↓
+TurnChangeSet { turnId, path, before, after, source, status }
+          ↓
+Review UI / test command / apply-or-revert decision
+```
+
+Projection 是只读派生视图；它不能悄悄覆盖用户 buffer。冲突、reload、外部写和未知来源必须显式显示。
+
+## 10. 扩展和插件模型
+
+当前 DHD 还没有稳定的第三方 Desktop 扩展 API。目标 API 应遵循三层：
+
+1. **Service Definition**：公开、版本化的最小接口。
+2. **Service Provider**：Harness plugin、Desktop adapter 或平台实现。
+3. **Consumer**：Workbench、Agent surface 或其它插件。
+
+每个注册都要有 disposer；每个权限都要有来源和用户确认；每个插件版本都要声明兼容的 Desktop contract 和 Harness pin。普通 DSH plugin 应尽量只依赖上游 DSH contract，以便在 Web、CLI 和 Desktop 复用。
+
+## 11. 多 Agent 语义
+
+| 名称 | 当前 owner | 桌面承诺 |
+|---|---|---|
+| 一次性 subagent | Harness preset | 保留上游语义，显示在 iframe Trajectory |
+| 可继续 subagent | Harness preset | 未来可投影 child session/status |
+| fork | Harness preset | 未来显示上下文来源，不复制日志 |
+| Workflow | Harness preset | 未来显示 run/job，不宣称跨进程可靠投递 |
+| Agent Teams | 上游 experimental package | opt-in；明确单进程、共享 checkout、advisory scopes |
+| ACP/CLI/SDK provider | 上游/外部 | 通过 adapter contract 接入，未接入前不宣传支持 |
+| 多个 coding agent 改 DHD | 仓库协作 | 独立 worktree、DSH_HOME、userData、端口和交接记录 |
+
+## 12. 打包和上游兼容
+
+当前 `electron-builder.yml` 打包 shell、workbench、desktop profile 和 PTY bridge，但没有完整 Harness/Node runtime。目标发布单元必须把以下内容绑定为一个版本：
+
+```text
+Desktop shell
++ exact Harness runtime
++ Node/pnpm/native dependencies
++ desktop profile
++ resources and migration metadata
+```
+
+升级 Harness 时：
+
+1. 单独更新 gitlink。
+2. 在 Harness checkout 安装/构建。
+3. 重新检查 Host 命令、ready line、token、workspace/session route、preset、iframe boot 和 Session format。
+4. 运行真实 Host smoke 和桌面关键流程。
+5. 更新 support matrix、CHANGELOG、回滚说明。
+6. 不把 pin bump 和无关 UI 功能混在同一提交。
+
+## 13. 已知限制与下一步
+
+当前限制详见 [`support-matrix.md`](support-matrix.md)。优先级最高的架构动作：
+
+1. 为 Host、PTY、watcher、search、workspace sync 建行为测试。
+2. 把 capability manifest 从描述性 API 扩展为 adapter negotiation。
+3. 实现 per-window Workspace Generation 和开发实例隔离的自动化验证。
+4. 以 turn controller + change projection 替代手工 iframe 深度融合。
+5. 在任何发行宣传前完成 runtime manifest、签名、原生安装和回滚证据。
+
+相关决策记录：[`0001`](adr/0001-runtime-boundary.md)、[`0002`](adr/0002-agent-transport.md)、[`0003`](adr/0003-capability-negotiation.md)、[`0004`](adr/0004-upstream-first-evaluation.md)。
