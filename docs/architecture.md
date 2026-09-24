@@ -333,6 +333,8 @@ interface TransportDriver {
 
 实现顺序：现有 loopback/iframe → Host IPC bridge → 外部 ACP/CLI。每个实现都必须有相同 contract test，尤其是取消、重连、事件顺序和 dispose。
 
+Context source builder 位于 [`packages/shared/src/context-source.ts`](../packages/shared/src/context-source.ts)，当前 AgentPanel 已用它生成结构化 selection payload；Session log 记录仍由未来 TransportDriver 负责。
+
 ### 9.4 Change Projection
 
 ```text

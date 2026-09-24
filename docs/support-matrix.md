@@ -45,7 +45,7 @@
 | Agent Transport contract | contract 已定义 | `AgentTransportDescriptor`/`AgentTransportDriver` 已进入 shared contract；当前 iframe descriptor 明确 send/cancel/resume/projection unsupported |
 | Turn Controller 状态机 | contract 已验证 | `pnpm test:contract` 覆盖 start/running/approval/cancel/resume/complete/dispose 事件顺序；尚未接入真实 Host |
 | Change Projection 纯函数 | contract 已验证 | 覆盖 Agent/user/formatter、冲突、revert、排序和路径安全；尚未接入 watcher/Session/UI |
-| 选区发送 | 部分验证 | 剪贴板 fallback 可用；`dhd-insert` postMessage 接收端未在当前 pin 中确认 |
+| 选区发送 | 部分验证 | `buildContextBundle` 已生成结构化 selection payload；剪贴板 fallback 可用，真实 Session log 和 `dhd-insert` 接收端未在当前 pin 中确认 |
 | Turn 原生投影 | 计划中 | 需要 TransportDriver、turn controller、Session event projection |
 | Agent diff attribution | 计划中 | 需要把 tool events、watcher 和 Git 状态合并成 turn 变更集 |
 | Trajectory/审批/工具卡 | 上游能力 | 在 iframe 的 Harness Web UI 中可用，DHD 尚未原生重做 |

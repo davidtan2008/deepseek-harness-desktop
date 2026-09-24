@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { buildContextBundle } from '@dhd/shared'
 import { dhd } from './lib'
 import { useApp } from './state'
 
@@ -10,16 +11,15 @@ export function AgentPanel({ width }: { width: number }) {
   async function sendSelection() {
     const sel = app.selection
     if (!sel?.text) return
-    const payload = [
-      `Context from editor ${sel.path}:`,
-      '```',
-      sel.text,
-      '```',
-      '',
-    ].join('\n')
-    await navigator.clipboard.writeText(payload)
+    let bundle: ReturnType<typeof buildContextBundle>
     try {
-      frame.current?.contentWindow?.postMessage({ type: 'dhd-insert', text: payload }, url ? new URL(url).origin : '*')
+      bundle = buildContextBundle([{ kind: 'selection', path: sel.path, text: sel.text }])
+    } catch {
+      return
+    }
+    await navigator.clipboard.writeText(bundle.canonical)
+    try {
+      frame.current?.contentWindow?.postMessage({ type: 'dhd-insert', text: bundle.canonical, context: bundle.items }, url ? new URL(url).origin : '*')
     } catch {
       // cross-origin; clipboard still has the payload
     }

@@ -142,7 +142,7 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
    - 将发送、运行、工具调用、审批、结束、失败和取消建模为显式状态。
    - Host 重启后从 Session log 恢复，不把 UI loading 状态当作完成。
 3. **Context Sources**
-   - 当前文件、选区、打开 Tab、Git diff、Problems 作为结构化 context source。
+   - 当前文件、选区、打开 Tab、Git diff、Problems 作为结构化 context source；基础 builder 和边界检查已实现，真实 Session log 仍待接入。
    - 模型可见内容必须进入 Session log；复制到剪贴板只能作为明确 fallback。
 4. **Change Projection**
    - 结合 Session/tool events、文件 watcher 和 Git 状态生成 turn 变更集；纯 projection contract 已实现，真实 producer/UI 尚未接入。

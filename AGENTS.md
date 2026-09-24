@@ -25,6 +25,7 @@ When sources disagree, fix the stale source or document the discrepancy. Do not 
 - `packages/shared/src/agent-transport.ts`
 - `packages/shared/src/turn-controller.ts`
 - `packages/shared/src/change-projection.ts`
+- `packages/shared/src/context-source.ts`
 - `docs/runtime-manifest.md`
 - the affected source and nearest tests
 

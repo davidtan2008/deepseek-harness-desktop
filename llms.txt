@@ -11,6 +11,7 @@
 - [docs/runtime-manifest.md](docs/runtime-manifest.md): generated runtime identity and bundled-dependency contract.
 - [docs/adr/0005-agent-transport-contract.md](docs/adr/0005-agent-transport-contract.md): Agent transport/turn contract and migration gate.
 - [docs/change-projection.md](docs/change-projection.md): read-only turn change projection and conflict rules.
+- [docs/context-sources.md](docs/context-sources.md): bounded model-visible context source contract.
 - [docs/upstream-first-evaluation.md](docs/upstream-first-evaluation.md): upstream Desktop Host reuse spike and migration criteria.
 - [docs/roadmap.md](docs/roadmap.md): outcome-based phases and exit gates.
 - [docs/agent-development.md](docs/agent-development.md): workflow for AI coding agents and parallel worktrees.

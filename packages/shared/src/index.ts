@@ -1,6 +1,7 @@
 export * from './protocol.js'
 export * from './agent-transport.js'
 export * from './change-projection.js'
+export * from './context-source.js'
 export * from './turn-controller.js'
 export * from './runtime.js'
 export * from './capabilities.js'
