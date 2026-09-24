@@ -28,11 +28,14 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @dhd/shared build && concurrently -k --kill-timeout 2000 --names workbench,shell --success command-shell \"pnpm --filter @dhd/workbench dev\" \"pnpm --filter @dhd/shell dev\"",
+    "dev": "pnpm runtime:manifest && pnpm --filter @dhd/shared build && concurrently -k --kill-timeout 2000 --names workbench,shell --success command-shell \"pnpm --filter @dhd/workbench dev\" \"pnpm --filter @dhd/shell dev\"",
     "doctor:env": "node scripts/doctor.mjs",
-    "build": "pnpm --filter @dhd/shared build && pnpm --filter @dhd/workbench build && pnpm --filter @dhd/shell build",
+    "runtime:manifest": "node scripts/generate-runtime-manifest.mjs source",
+    "runtime:manifest:packaged": "node scripts/generate-runtime-manifest.mjs packaged",
+    "release:check": "pnpm --filter @dhd/shared build && pnpm runtime:manifest:packaged && node scripts/check-release-runtime.mjs",
+    "build": "pnpm runtime:manifest && pnpm --filter @dhd/shared build && pnpm --filter @dhd/workbench build && pnpm --filter @dhd/shell build",
     "docs:check": "node scripts/check-docs.mjs",
-    "test:contract": "pnpm --filter @dhd/shared build && node scripts/check-capabilities.mjs && node scripts/check-ipc-contract.mjs",
+    "test:contract": "pnpm runtime:manifest && pnpm --filter @dhd/shared build && node scripts/check-capabilities.mjs && node scripts/check-ipc-contract.mjs",
     "typecheck": "pnpm --filter @dhd/shared build && pnpm -r typecheck",
     "pack": "pnpm build && pnpm --filter @dhd/shell pack:app",
     "pack:mac": "pnpm build && pnpm --filter @dhd/shell pack:mac",

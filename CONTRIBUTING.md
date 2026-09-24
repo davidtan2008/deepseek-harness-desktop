@@ -139,6 +139,8 @@ git diff --check
 git status --short
 ```
 
+发行候选额外运行 `pnpm release:check`；当前 runtime 尚未 bundled 时该命令应明确失败。
+
 PR 中列出实际执行的命令、未执行的平台验证、关联 issue 和文档更新。不要提交真实 API key、用户路径、DSH_HOME、Electron userData 或 `harness/` 未说明的本地改动。
 
 ## 安全报告

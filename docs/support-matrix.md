@@ -10,9 +10,12 @@
 |---|---|---|
 | 独立社区项目 | 已验证 | 不是 DeepSeek 官方 Desktop，也没有官方背书；见 README |
 | 源码开发模式 | 已验证 | `pnpm install` → `pnpm dev`；需要本机 Node 22.19+ 和可运行的 Harness checkout |
+| 上游 Desktop build spike | 部分验证 | macOS arm64 `pnpm --dir harness --filter @deepseek-ai/dsh-desktop build` 通过；启动 smoke 在 Electron binary 下载阶段受环境阻塞 |
 | 外部 Host 复用 | 已实现未自动化 | `DHD_HARNESS_URL` 解析后不由桌面终止；workspace sync 需要 token |
-| 打包脚本 | 已实现未发行验证 | `pnpm pack:*` 可生成 electron-builder 配置产物；没有签名/公证 release 证据 |
-| 完整 runtime 捆绑 | 计划中 | 当前 `electron-builder.yml` 不携带完整 Harness/Node 闭包 |
+| Runtime manifest | 已验证 | `pnpm runtime:manifest` / `packaged` 生成，`doctor:env` 和 `app.capabilities.runtime` 可读取 |
+| Packaged runtime preflight | 已验证 | macOS arm64 packaged app 在 `bundled.* = false` 时保持启动但拒绝启动外部 Host，无新增 `dsh web` 进程 |
+| 打包脚本 | 已验证（macOS arm64）/未发行 | electron-builder unpacked、zip、DMG 已验证；未配置 notarization，Windows/Linux 未验证 |
+| 完整 runtime 捆绑 | 计划中 | 当前 `electron-builder.yml` 不携带完整 Harness/Node 闭包；packaged Host 对不完整 manifest fail closed |
 | Linux 安装包 | 计划中 | 可构建配置存在，但未纳入本版本的质量/发行承诺 |
 
 ## 2. Workbench 能力

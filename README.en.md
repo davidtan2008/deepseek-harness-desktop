@@ -42,7 +42,7 @@ Important current limits:
 - Selection handoff currently falls back to the clipboard; automatic composer injection is not guaranteed.
 - The Changes panel is repository-level Git diff, not an Agent-turn diff.
 - Desktop `defaultModel`, `defaultPreset`, and `sandboxMode` are not automatically Host-effective settings.
-- The current package does not bundle a complete Harness/Node runtime.
+- The current package does not bundle a complete Harness/Node runtime; a packaged Host fails closed when the runtime manifest is incomplete instead of silently falling back to system Node/npx.
 - The outer repository has no complete unit/E2E suite; `pnpm test:contract` only covers capability and IPC/preload contracts, and typecheck/build are not runtime tests.
 
 See the version-bound [support matrix](docs/support-matrix.md) before making product claims.
@@ -99,6 +99,7 @@ The Host is an external Node process. Main supervises it but does not execute Ag
 | `DHD_WORKBENCH_PORT` | Select an isolated Vite renderer port. |
 | `DHD_ALLOW_MULTIPLE=1` | Development-only bypass of the single-instance lock. |
 | `DHD_ALLOW_REMOTE_HOST=1` | Explicit unsafe override for non-loopback Host URLs; avoid normal use. |
+| `DHD_ALLOW_UNBUNDLED_RUNTIME=1` | Local diagnostic override for a packaged app without bundled Harness/Node; never use for releases. |
 | `RIPGREP_PATH` | Select the ripgrep executable. |
 
 ## Documentation map
@@ -106,6 +107,8 @@ The Host is an external Node process. Main supervises it but does not execute Ag
 - [Market research](docs/market-research.md) — official philosophy, paper, competitors, and positioning.
 - [Roadmap](docs/roadmap.md) — outcome-based phases and exit gates.
 - [Architecture](docs/architecture.md) — as-built topology, contracts, lifecycle, and target seams.
+- [Runtime manifest](docs/runtime-manifest.md) — generated runtime identity and bundled-dependency contract.
+- [Upstream-first evaluation](docs/upstream-first-evaluation.md) — Desktop Host reuse spike and migration criteria.
 - [AI agent development](docs/agent-development.md) — source-of-truth, parallel worktrees, checks, and handoff.
 - [`llms.txt`](llms.txt) — compact machine-readable project index.
 - [Support matrix](docs/support-matrix.md) — evidence and current limitations.
@@ -121,6 +124,12 @@ pnpm typecheck
 pnpm test:contract
 pnpm build
 git diff --check
+```
+
+Run the release-only gate separately (the current source preview is expected to fail until the runtime is bundled):
+
+```sh
+pnpm release:check
 ```
 
 Run real Host, PTY, search, shutdown, and packaging flows for changes that affect them. Report the exact commands run and any unverified platform; do not describe build success as runtime coverage.

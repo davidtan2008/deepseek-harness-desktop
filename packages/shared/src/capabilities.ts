@@ -1,4 +1,5 @@
 import type { HostState } from './protocol.js'
+import type { RuntimeManifest } from './runtime.js'
 
 export const DESKTOP_CONTRACT_VERSION = 1 as const
 
@@ -26,6 +27,7 @@ export interface CapabilityDescriptor {
 export interface DesktopCapabilities {
   contractVersion: typeof DESKTOP_CONTRACT_VERSION
   appVersion: string
+  runtime: RuntimeManifest | null
   surface: AgentSurface
   host: {
     status: HostState['status']
@@ -45,11 +47,13 @@ export function createDesktopCapabilities(input: {
   host: HostState
   externalHost: boolean
   packaged: boolean
+  runtime?: RuntimeManifest | null
 }): DesktopCapabilities {
   const agentState = hostCapabilityState(input.host.status)
   return {
     contractVersion: DESKTOP_CONTRACT_VERSION,
     appVersion: input.appVersion,
+    runtime: input.runtime ?? null,
     surface: input.externalHost ? 'external-loopback' : 'managed-iframe',
     host: {
       status: input.host.status,

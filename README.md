@@ -42,7 +42,7 @@ DeepSeek Harness 已经是一个强大的、可组合的 Agent runtime：模型�
 - “发送选区”当前可靠 fallback 是剪贴板；不能保证自动注入 Agent composer。
 - Changes 面板是仓库级 Git diff，不是按 Agent turn 归因的 diff。
 - `defaultModel`、`defaultPreset` 和 `sandboxMode` 的桌面设置不能自动等同于 Host effective settings。
-- 打包配置目前不包含完整 Harness/Node 闭包；请按源码模式运行。
+- 打包配置目前不包含完整 Harness/Node 闭包；packaged Host 会在 runtime manifest 不完整时 fail closed，不会静默回退到系统 Node/npx。
 - 外层仓库当前没有完整 unit/E2E 测试套件；`pnpm test:contract` 只覆盖 capability 与 IPC/preload contract，`typecheck` 和 `build` 不等于运行时验证。
 
 完整、绑定版本的支持矩阵见 [docs/support-matrix.md](docs/support-matrix.md)。
@@ -118,6 +118,8 @@ flowchart LR
 |---|---|
 | 产品为什么这样定位、竞品有什么优点 | [市场与生态调研](docs/market-research.md) |
 | 当前代码如何启动、通信、清理资源 | [架构文档](docs/architecture.md) |
+| 当前 Node/Harness/平台依赖和 bundled 状态 | [Runtime Manifest](docs/runtime-manifest.md) |
+| 评估上游 Desktop Host 复用方案 | [Upstream-first Evaluation](docs/upstream-first-evaluation.md) |
 | 下一阶段做什么、什么算完成 | [路线图](docs/roadmap.md) |
 | 我是 AI coding agent，如何安全接手任务 | [AI Agent 开发指南](docs/agent-development.md) · [`llms.txt`](llms.txt) |
 | 当前哪个平台/能力真实可用 | [支持矩阵](docs/support-matrix.md) |
@@ -144,6 +146,7 @@ DHD 的长期方向是公开、版本化、可替换的 capability contract，�
 | `DHD_HARNESS_ROOT` | 指定 Harness 源码根目录 |
 | `DHD_HARNESS_URL` | 采用 loopback `dsh web` URL；外部 Host 不由桌面终止（远程 URL 需显式 `DHD_ALLOW_REMOTE_HOST=1`，不建议） |
 | `DHD_ALLOW_REMOTE_HOST` | 仅用于明确允许非 loopback Host 的危险开发/诊断场景 |
+| `DHD_ALLOW_UNBUNDLED_RUNTIME=1` | 仅本地诊断 packaged app 的外部 runtime；正式发行禁止 |
 | `DHD_NODE` | 指定启动 Host 的 Node |
 | `DSH_HOME` | Harness profile、Session 和凭证目录 |
 | `DHD_USER_DATA` | 隔离 Electron 设置和 userData（开发多实例） |
@@ -159,6 +162,12 @@ pnpm typecheck
 pnpm test:contract
 pnpm build
 git diff --check
+```
+
+发行前额外运行（当前源码预览预期会因 runtime 尚未 bundled 而失败）：
+
+```sh
+pnpm release:check
 ```
 
 涉及 Host、PTY、搜索、窗口、打包或多 Agent 的改动，还需要对应的真实流程验证；请在 PR 中写明实际执行的命令和未覆盖的平台。Harness gitlink、锁文件和版本号应由单独、可回滚的提交更新。

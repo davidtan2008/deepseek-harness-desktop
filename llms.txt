@@ -8,6 +8,8 @@
 - [docs/README.md](docs/README.md): documentation question-to-owner index.
 - [docs/market-research.md](docs/market-research.md): official philosophy, paper interpretation, competitor matrix, positioning decisions.
 - [docs/architecture.md](docs/architecture.md): as-built processes, contracts, lifecycle, target seams.
+- [docs/runtime-manifest.md](docs/runtime-manifest.md): generated runtime identity and bundled-dependency contract.
+- [docs/upstream-first-evaluation.md](docs/upstream-first-evaluation.md): upstream Desktop Host reuse spike and migration criteria.
 - [docs/roadmap.md](docs/roadmap.md): outcome-based phases and exit gates.
 - [docs/agent-development.md](docs/agent-development.md): workflow for AI coding agents and parallel worktrees.
 - [docs/support-matrix.md](docs/support-matrix.md): evidence-based current capability matrix.
@@ -57,7 +59,7 @@ DHD_ALLOW_MULTIPLE=1 \
 pnpm dev
 ```
 
-`DHD_HARNESS_URL` adopts a loopback external Host; the desktop does not terminate an adopted Host. `DHD_ALLOW_REMOTE_HOST=1` is an explicit unsafe override for diagnostics. Never commit credentials.
+`DHD_HARNESS_URL` adopts a loopback external Host; the desktop does not terminate an adopted Host. `DHD_ALLOW_REMOTE_HOST=1` is an explicit unsafe override for diagnostics. Packaged builds fail closed without a bundled runtime unless `DHD_ALLOW_UNBUNDLED_RUNTIME=1` is explicitly set for local diagnostics. Never commit credentials.
 
 ## Extension and Agent vocabulary
 

@@ -8,6 +8,8 @@
 |---|---|
 | 第一次运行源码 | [用户指南](user-guide.md) |
 | 理解当前进程和 contract | [架构文档](architecture.md) |
+| 查看当前运行环境和发布依赖 | [Runtime Manifest](runtime-manifest.md) |
+| 评估上游 Desktop Host 复用方案 | [Upstream-first Evaluation](upstream-first-evaluation.md) |
 | 判断某功能是否已交付 | [支持矩阵](support-matrix.md) |
 | 了解产品定位和竞品 | [市场调研](market-research.md) |
 | 参与开发或接手 AI agent 任务 | [AI Agent 开发指南](agent-development.md) · [`llms.txt`](../llms.txt) |

@@ -12,7 +12,8 @@
 4. [`docs/architecture.md`](architecture.md)：当前 as-built 进程、数据和生命周期。
 5. [`docs/roadmap.md`](roadmap.md)：目标架构与阶段退出条件。
 6. [`packages/shared/src/protocol.ts`](../packages/shared/src/protocol.ts)：跨进程数据与通道真源。
-7. 受影响目录的源码和测试；不要从 `harness/` 子模块内部开始改桌面代码。
+7. [`packages/shared/src/runtime.ts`](../packages/shared/src/runtime.ts) 和 [`docs/runtime-manifest.md`](runtime-manifest.md)：当前 runtime 和 bundled 依赖的身份契约。
+8. 受影响目录的源码和测试；不要从 `harness/` 子模块内部开始改桌面代码。
 
 ## 2. Source-of-truth 优先级
 
@@ -70,6 +71,7 @@ pnpm dev
 | `DHD_ALLOW_MULTIPLE` | 仅开发/测试时允许绕过单实例锁 |
 | `DHD_HARNESS_URL` | 复用 loopback 外部 Host；桌面不会终止外部 Host（远程需显式不安全开关） |
 | `DHD_ALLOW_REMOTE_HOST` | 仅诊断时允许非 loopback Host；不要在日常开发使用 |
+| `DHD_ALLOW_UNBUNDLED_RUNTIME=1` | 仅诊断 packaged app 的外部 runtime；正式发行禁止 |
 
 不要把这些变量写进提交、fixture 或用户真实配置。不要把 API key 复制到多个工作树；通过环境变量或安全的外部凭证存储提供。
 

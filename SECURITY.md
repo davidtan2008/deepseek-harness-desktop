@@ -11,7 +11,7 @@ DHD is an unofficial source-preview project. It launches a code-execution-capabl
 ## Current boundaries
 
 - **Renderer**: `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`; the preload exposes a typed method whitelist and no generic `invoke(channel)`.
-- **Host**: runs outside Electron Main. Main supervises owned Hosts; an adopted `DHD_HARNESS_URL` Host is not terminated by DHD.
+- **Host**: runs outside Electron Main. Main supervises owned Hosts; an adopted `DHD_HARNESS_URL` Host is not terminated by DHD. Packaged builds fail closed when the manifest does not declare bundled Harness/Node, unless the explicit `DHD_ALLOW_UNBUNDLED_RUNTIME=1` diagnostic override is set.
 - **Agent execution**: tools, approvals and sandbox policy are owned by Harness. Electron renderer isolation is not an Agent sandbox.
 - **Credentials**: API keys use Electron `safeStorage` and a permission-restricted compatibility file; do not put keys in logs, fixtures or issues.
 - **Network**: current Agent surface uses a loopback Host URL. `DHD_HARNESS_URL` rejects non-loopback hosts by default; `DHD_ALLOW_REMOTE_HOST=1` is an explicit, unsafe escape hatch. Do not expose a Host to LAN or the public internet by default; future remote access must use explicit, short-lived capabilities and user-controlled private networking.

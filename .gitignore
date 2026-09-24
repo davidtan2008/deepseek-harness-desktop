@@ -5,6 +5,7 @@ node_modules/
 dist/
 out/
 release/
+apps/shell/runtime-manifest.json
 *.tsbuildinfo
 .vite/
 

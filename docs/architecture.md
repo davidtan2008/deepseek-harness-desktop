@@ -75,6 +75,7 @@ apps/shell/src/
 ├── credentials.ts          # safeStorage + DSH_HOME credential ref
 ├── inline-edit.ts          # Cmd/Ctrl+K 的模型调用
 ├── updater.ts              # electron-updater 骨架
+├── runtime-manifest.ts     # 读取/校验 source 或 packaged runtime manifest
 └── preload.ts              # 白名单 API，不暴露通用 invoke
 
 apps/workbench/src/
@@ -96,6 +97,7 @@ packages/shared/src/
 ├── protocol.ts             # 领域类型、IpcChannel、IpcEventMap
 ├── api.ts                  # DesktopApi 唯一类型
 ├── capabilities.ts         # 版本化 capability manifest
+├── runtime.ts              # RuntimeManifest schema
 └── index.ts                # package 导出
 ```
 
@@ -131,7 +133,11 @@ preload 不再暴露 `invoke(channel, ...args)`。Renderer 不能绕过 API 对�
 
 它是“能力发现”入口，不是安全授权。Host 每次状态迁移还会广播 `capabilities:changed`，Renderer 不应把启动时的 snapshot 当作永久事实。未来 adapter/plugin 应读取该 manifest，并明确声明自己支持的能力；未知能力必须返回 `unsupported`，不能静默假装成功。
 
-### 4.3 当前 IPC 分类
+### 4.3 Runtime manifest
+
+`packages/shared/src/runtime.ts` 定义 `RuntimeManifest` schema。`apps/shell/src/runtime-manifest.ts` 从源码目录或 packaged resources 读取并校验它；有效 manifest 随 `app.capabilities` 发送给 Renderer，损坏/缺失时返回 `runtime: null` 并保留诊断。`runtime-manifest.json` 是构建产物，不提交到 Git；字段和发行规则见 [`runtime-manifest.md`](runtime-manifest.md)。
+
+### 4.4 当前 IPC 分类
 
 | 分类 | 例子 | 所有者 |
 |---|---|---|
@@ -176,6 +182,7 @@ ready → stopped（重启/退出）
 ```
 
 - `DHD_HARNESS_URL` 合法：采用 loopback URL，标记为 external，桌面不拥有其进程；非 loopback 只有显式 `DHD_ALLOW_REMOTE_HOST=1` 才会被接受。
+- Packaged build 读取 `runtime-manifest.json`；manifest 缺失、不是 packaged 模式或未声明 bundled Harness/Node 时 fail closed。`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 只用于本地诊断。
 - 否则：探测 Harness root，使用本机 Node 启动 `dsh web`。
 - ready 只由 stdout 的 `dsh web: <url>` 解析确认；启动超时、进程提前退出和无效 URL 进入 error。
 - 自有 Host 退出先 TERM，2 秒后 KILL，并等待真实退出；外部 Host 不由桌面终止。
@@ -360,7 +367,7 @@ Projection 是只读派生视图；它不能悄悄覆盖用户 buffer。冲突�
 
 ## 12. 打包和上游兼容
 
-当前 `electron-builder.yml` 打包 shell、workbench、desktop profile 和 PTY bridge，但没有完整 Harness/Node runtime。目标发布单元必须把以下内容绑定为一个版本：
+当前 `electron-builder.yml` 打包 shell、workbench、desktop profile、PTY bridge 和生成的 `runtime-manifest.json`，但没有完整 Harness/Node runtime。`pnpm build` 生成 source manifest；`pnpm pack:*` 在进入 electron-builder 前生成 packaged manifest。目标发布单元必须把以下内容绑定为一个版本：
 
 ```text
 Desktop shell
@@ -389,4 +396,4 @@ Desktop shell
 4. 以 turn controller + change projection 替代手工 iframe 深度融合。
 5. 在任何发行宣传前完成 runtime manifest、签名、原生安装和回滚证据。
 
-相关决策记录：[`0001`](adr/0001-runtime-boundary.md)、[`0002`](adr/0002-agent-transport.md)、[`0003`](adr/0003-capability-negotiation.md)、[`0004`](adr/0004-upstream-first-evaluation.md)。
+相关决策记录：[`0001`](adr/0001-runtime-boundary.md)、[`0002`](adr/0002-agent-transport.md)、[`0003`](adr/0003-capability-negotiation.md)、[`0004`](adr/0004-upstream-first-evaluation.md)。上游复用分析和 Spike 见 [`upstream-first-evaluation.md`](upstream-first-evaluation.md)。

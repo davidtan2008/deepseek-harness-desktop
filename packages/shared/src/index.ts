@@ -1,4 +1,5 @@
 export * from './protocol.js'
+export * from './runtime.js'
 export * from './capabilities.js'
 export * from './api.js'
 

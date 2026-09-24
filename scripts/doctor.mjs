@@ -59,6 +59,19 @@ for (const [label, path] of optionalBuilds) {
   console.log(`${present ? '✓' : 'ℹ'} ${label}: ${present ? path : '未构建（运行 pnpm build 或 pnpm dev）'}`)
 }
 
+const manifestPath = join(root, 'apps/shell/runtime-manifest.json')
+if (existsSync(manifestPath)) {
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+    const valid = manifest.schemaVersion === 1 && (manifest.mode === 'source' || manifest.mode === 'packaged') && typeof manifest.harness?.commit === 'string'
+    report('runtime manifest', `${manifest.mode} · Harness ${manifest.harness?.version ?? 'unknown'}`, valid)
+  } catch (error) {
+    report('runtime manifest', `无法解析：${error instanceof Error ? error.message : String(error)}`, false)
+  }
+} else {
+  console.log('ℹ runtime manifest: 未生成（运行 pnpm runtime:manifest）')
+}
+
 const rg = process.env.RIPGREP_PATH || command('rg', ['--version'])?.split('\n')[0] || '未找到（搜索会使用 JS fallback）'
 report('ripgrep', rg, true)
 
@@ -67,6 +80,7 @@ console.log(`DHD_USER_DATA: ${process.env.DHD_USER_DATA || '(Electron default)'}
 console.log(`DHD_WORKBENCH_PORT: ${process.env.DHD_WORKBENCH_PORT || '5173'}`)
 console.log(`DHD_ALLOW_MULTIPLE: ${process.env.DHD_ALLOW_MULTIPLE || '0'}`)
 console.log(`DHD_ALLOW_REMOTE_HOST: ${process.env.DHD_ALLOW_REMOTE_HOST || '0'}`)
+console.log(`DHD_ALLOW_UNBUNDLED_RUNTIME: ${process.env.DHD_ALLOW_UNBUNDLED_RUNTIME || '0'}`)
 
 if (fail.length > 0) {
   console.error(`\n${fail.length} 个基础条件未满足。源码启动前请先修复上面的 ✗ 项。`)

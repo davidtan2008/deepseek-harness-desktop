@@ -66,6 +66,17 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 | 没有稳定扩展 API | 插件作者只能猜内部实现 | 版本化 capability/adapter contract + ADR |
 | 缺少 signed release / rollback | 安装信任和升级风险高 | 先做 release rehearsal，再谈自动更新 |
 
+## 0. 执行状态（2026-09-24）
+
+| 阶段 | 状态 | 当前证据 / 下一步 |
+|---|---|---|
+| R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
+| R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物和 packaged fail-closed smoke 已验证；上游 Desktop build 已通过、启动 smoke 受 Electron 下载环境阻塞；下一步是完成 upstream-first spike、runtime closure 和安装后验证 |
+| R2 Agent 原生闭环 | ⏳ 未开始 | 先完成 R1 的 runtime/Host contract，再实现 TransportDriver 和 turn controller |
+| R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
+
+本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明。正式 release 仍必须满足 R1 全部退出门。
+
 ## 4. 阶段路线图
 
 每个阶段都有可演示结果和退出门；日期不是承诺，退出条件才是承诺。
@@ -97,7 +108,8 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 1. **Runtime manifest**
    - 记录 Desktop version、Harness commit/version、Node、pnpm、平台/架构、原生依赖和文件 hash。
    - 运行时版本成为 Host 启动、更新和兼容检查的唯一输入。
-   - 先评估复用当前 pin 的上游 `apps/desktop`/`desktop-host` 能力，避免在外层重新实现同一套 loader、profile 和更新闭包；结论记录在 [`ADR 0004`](adr/0004-upstream-first-evaluation.md)。
+   - `pnpm release:check` 是正式发行的 fail-closed gate；当前应明确失败而不是假装已可发行。
+   - 先评估复用当前 pin 的上游 `apps/desktop`/`desktop-host` 能力，避免在外层重新实现同一套 loader、profile 和更新闭包；具体分析和 Spike 任务见 [`upstream-first-evaluation.md`](upstream-first-evaluation.md)，结论记录在 [`ADR 0004`](adr/0004-upstream-first-evaluation.md)。
 2. **打包**
    - 捆绑目标平台 Node、Harness runtime、pnpm、ripgrep、PTY 依赖和必要资源。
    - 开发源码模式与 packaged 模式明确分开。

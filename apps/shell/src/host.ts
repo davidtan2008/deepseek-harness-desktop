@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -5,6 +6,7 @@ import { join } from 'node:path'
 import type { HostState } from '@dhd/shared'
 import { harnessRoot, resolveDshHome } from './paths.ts'
 import { desktopMcpPatchPath } from './mcp-service.ts'
+import { harnessRuntimeMismatch, loadRuntimeManifest } from './runtime-manifest.ts'
 
 const READY = /dsh web:\s*(https?:\/\/[^\s]+)/
 const DEFAULT_ORIGIN = 'http://127.0.0.1:3080'
@@ -236,7 +238,25 @@ export class HostProcess {
   }
 
   private async spawnOwned(): Promise<HostState> {
+    const runtime = loadRuntimeManifest()
+    if (app.isPackaged && process.env.DHD_ALLOW_UNBUNDLED_RUNTIME !== '1') {
+      if (!runtime || runtime.mode !== 'packaged' || !runtime.bundled.harness || !runtime.bundled.node) {
+        this.set({
+          status: 'error',
+          message: 'Packaged runtime is incomplete. Build with the bundled Harness/Node payload, or set DHD_ALLOW_UNBUNDLED_RUNTIME=1 only for local diagnostics.',
+        })
+        return this.state
+      }
+    }
+
     const harness = harnessRoot()
+    if (runtime && harness) {
+      const mismatch = harnessRuntimeMismatch(runtime, harness)
+      if (mismatch) {
+        this.set({ status: 'error', message: mismatch })
+        return this.state
+      }
+    }
     const node = resolveNode()
     const dshHome = resolveDshHome()
     const webArgs = dshWebArgs()

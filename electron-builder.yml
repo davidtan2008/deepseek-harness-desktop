@@ -11,6 +11,8 @@ files:
 extraMetadata:
   main: dist/main.js
 extraResources:
+  - from: runtime-manifest.json
+    to: runtime-manifest.json
   - from: ../../packages/desktop-profile/cordis.patch.yml
     to: desktop-profile/cordis.patch.yml
   - from: ../workbench/dist

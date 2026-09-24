@@ -2,6 +2,16 @@
   "name": "@dhd/shell",
   "version": "0.1.0",
   "private": true,
+  "description": "Unofficial local-first, plugin-friendly Cursor-style workbench for DeepSeek Harness",
+  "author": "DeepSeek Harness Desktop contributors",
+  "homepage": "https://github.com/davidtan2008/deepseek-harness-desktop#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidtan2008/deepseek-harness-desktop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidtan2008/deepseek-harness-desktop/issues"
+  },
   "type": "module",
   "main": "./dist/main.js",
   "scripts": {
@@ -9,10 +19,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "node ./scripts/build.mjs && node ./scripts/wait-and-launch.mjs",
     "start": "electron ./dist/main.js",
-    "pack:app": "electron-builder --config ../../electron-builder.yml",
-    "pack:mac": "electron-builder --mac --config ../../electron-builder.yml",
-    "pack:win": "electron-builder --win --config ../../electron-builder.yml",
-    "pack:linux": "electron-builder --linux --config ../../electron-builder.yml"
+    "pack:app": "node ../../scripts/generate-runtime-manifest.mjs packaged && electron-builder --config ../../electron-builder.yml",
+    "pack:mac": "node ../../scripts/generate-runtime-manifest.mjs packaged && electron-builder --mac --config ../../electron-builder.yml",
+    "pack:win": "node ../../scripts/generate-runtime-manifest.mjs packaged && electron-builder --win --config ../../electron-builder.yml",
+    "pack:linux": "node ../../scripts/generate-runtime-manifest.mjs packaged && electron-builder --linux --config ../../electron-builder.yml"
   },
   "dependencies": {
     "@dhd/shared": "workspace:*",

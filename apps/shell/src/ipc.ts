@@ -12,6 +12,7 @@ import { cancelAllSearches, cancelSearch, listFiles, searchContent } from './sea
 import { loadSettings, rememberProject, saveSettings } from './settings-store.ts'
 import type { HostProcess } from './host.ts'
 import { watchProject, type ProjectWatcher } from './project-watcher.ts'
+import { loadRuntimeManifest } from './runtime-manifest.ts'
 
 export interface IpcContext {
   host: HostProcess
@@ -27,6 +28,7 @@ export function getDesktopCapabilities(host: HostProcess): ReturnType<typeof cre
     host: host.getState(),
     externalHost: host.getMode() === 'external',
     packaged: app.isPackaged,
+    runtime: loadRuntimeManifest(),
   })
 }
 
