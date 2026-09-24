@@ -230,6 +230,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
   private socket: WebSocket | undefined
   private connectPromise: Promise<void> | undefined
   private streamFailure: Error | undefined
+  private streamGeneration = 0
   private streamEnded = false
   private connected = false
   private disposed = false
@@ -257,7 +258,12 @@ export class HarnessWebSessionPort implements AgentSessionPort {
     this.assertNotDisposed()
     if (this.connected) return
     if (this.connectPromise !== undefined) return this.connectPromise
-    const attempt = this.openStream()
+    this.streamFailure = undefined
+    this.streamEnded = false
+    this.queue.length = 0
+    this.unassignedTurns.length = 0
+    this.activeTurnId = undefined
+    const attempt = this.openStream(++this.streamGeneration)
     this.connectPromise = attempt
     try {
       await attempt
@@ -275,6 +281,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
   }
 
   async sendTurn(request: AgentTurnRequest): Promise<{ turnId: string }> {
+    if (!this.connected) await this.connect()
     this.assertReady()
     if (request.turnId.length === 0) throw new Error('Agent turn id must not be empty')
     if (this.requests.has(request.turnId)) throw new Error(`turn already exists: ${request.turnId}`)
@@ -282,6 +289,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
   }
 
   async cancel(turnId: string): Promise<void> {
+    if (!this.connected) await this.connect()
     this.assertReady()
     const request = this.requests.get(turnId)
     if (request?.turnNumber === undefined) throw new Error(`turn is not active: ${turnId}`)
@@ -290,6 +298,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
   }
 
   async resume(turnId: string): Promise<{ turnId: string }> {
+    if (!this.connected) await this.connect()
     this.assertReady()
     const previous = this.requests.get(turnId)
     if (previous === undefined || previous.state !== 'terminal') throw new Error(`turn cannot be resumed: ${turnId}`)
@@ -344,7 +353,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
     }
   }
 
-  private async openStream(): Promise<void> {
+  private async openStream(generation: number): Promise<void> {
     const connection = await this.options.api.authenticated()
     const url = new URL('/api/remote.mux', connection.origin)
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -364,7 +373,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
       this.cursorValue = opening.cursor
       for (const record of opening.records) this.processEvent(record)
       this.connected = true
-      void this.consume()
+      void this.consume(generation)
     } catch (error) {
       if (this.socket === socket) this.socket = undefined
       if (socket.readyState === WebSocket.CONNECTING) socket.terminate()
@@ -401,6 +410,7 @@ export class HarnessWebSessionPort implements AgentSessionPort {
 
   private attachSocket(socket: WebSocket): void {
     socket.on('message', (data: RawData, isBinary: boolean) => {
+      if (this.socket !== socket) return
       if (isBinary) {
         this.fail(new Error('Harness Session WebSocket sent a binary frame'))
         socket.close(1003, 'text frames required')
@@ -421,21 +431,25 @@ export class HarnessWebSessionPort implements AgentSessionPort {
         socket.close(1008, 'invalid Remote stream frame')
       }
     })
-    socket.on('error', (error) => this.fail(error))
+    socket.on('error', (error) => {
+      if (this.socket === socket) this.fail(error)
+    })
     socket.on('close', () => {
-      if (this.socket === socket) this.socket = undefined
+      if (this.socket !== socket) return
+      this.socket = undefined
       if (!this.disposed && !this.streamEnded) this.fail(new Error('Harness Session WebSocket closed'))
     })
   }
 
-  private async consume(): Promise<void> {
+  private async consume(generation: number): Promise<void> {
     try {
-      while (!this.disposed) {
+      while (!this.disposed && generation === this.streamGeneration) {
         const item = await this.nextItem()
+        if (generation !== this.streamGeneration) return
         this.processEvent(item.value)
       }
     } catch (error) {
-      if (!this.disposed) this.fail(error instanceof Error ? error : new Error(String(error)))
+      if (!this.disposed && generation === this.streamGeneration) this.fail(error instanceof Error ? error : new Error(String(error)))
     }
   }
 
@@ -620,6 +634,8 @@ export class HarnessWebSessionPort implements AgentSessionPort {
 
   private fail(error: Error): void {
     const firstFailure = this.streamFailure === undefined
+    this.streamGeneration += 1
+    this.connectPromise = undefined
     this.streamFailure ??= error
     const failure = this.streamFailure
     for (const waiter of this.waiters) waiter.reject(failure)

@@ -67,6 +67,10 @@ export class AgentRuntime {
     return this.sessionId
   }
 
+  matches(origin: string, token: string): boolean {
+    return this.origin === origin && this.token === token
+  }
+
   capabilities(): AgentTransportDescriptor {
     return this.driver.capabilities()
   }

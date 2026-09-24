@@ -72,10 +72,10 @@ DHD 是独立的社区 Electron workbench，不是 DeepSeek 官方 Desktop 的�
 |---|---|---|
 | R0 真实基线 | ✅ 完成 | README、支持矩阵、架构、ADR、`AGENTS.md`、`llms.txt`、capability/IPC contract 已落盘 |
 | R1 可安装可恢复 | 🚧 进行中 | 已完成 runtime manifest schema/生成器/doctor/capability 集成；macOS arm64 electron-builder 产物、packaged fail-closed、上游 Desktop 启动/退出、workspace smoke 和 upstream Host IPC lifecycle 已验证；跨平台、升级回滚和完整 runtime closure 仍待验证 |
-| R2 Agent 原生闭环 | 🚧 进行中 | 已定义 `AgentTransportDescriptor`/`AgentTransportDriver` contract，验证 Turn Controller 状态机，实现 upstream Host IPC lifecycle、authenticated Session prompt/follow、structured context、tool/approval/change events 和 Main-owned AgentRuntime；`smoke:native-turn` 已用真实 Harness loop + mock provider 验证 Session log，外部 provider、diff review、Host restart/reconnect 和跨平台验证仍待完成 |
+| R2 Agent 原生闭环 | 🚧 进行中 | 已定义 `AgentTransportDescriptor`/`AgentTransportDriver` contract，验证 Turn Controller 状态机，实现 upstream Host IPC lifecycle、authenticated Session prompt/follow、structured context、tool/approval/change events、Session WebSocket reconnect 和 Main-owned AgentRuntime；`smoke:native-turn` 已用真实 Harness loop + mock provider 验证 Session log，外部 provider、完整 review loop 和跨平台验证仍待完成 |
 | R3–R6 | ⏳ 后续 | 按 Gate 顺序推进，不提前宣传 |
 
-本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明；R1 workspace/session smoke 已通过。R2 已从 contract-first 进入第一个真实 Session vertical slice：workspace sync 后建立 authenticated `session/follow`，native AgentRuntime 可发送结构化 turn 并接收 tool/approval/change/terminal events；`smoke:native-turn` 已用真实 Harness loop + mock provider 验证 prompt/context 和 Session log，外部 provider 和 review loop 仍未完成。正式 release 仍必须满足 R1 全部退出门。
+本轮 R1 切片：`runtime-manifest` → `app.capabilities.runtime` → 发行依赖诚实声明；R1 workspace/session smoke 已通过。R2 已从 contract-first 进入第一个真实 Session vertical slice：workspace sync 后建立 authenticated `session/follow`，native AgentRuntime 可发送结构化 turn 并接收 tool/approval/change/terminal events；`smoke:native-turn` 已用真实 Harness loop + mock provider 验证 prompt/context 和 Session log，外部 provider、跨平台 reconnect 和完整 review loop 仍未完成。正式 release 仍必须满足 R1 全部退出门。
 
 ## 4. 阶段路线图
 

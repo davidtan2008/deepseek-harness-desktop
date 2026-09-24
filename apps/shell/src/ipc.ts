@@ -70,7 +70,7 @@ async function ensureAgentRuntime(
   sessionId: string,
 ): Promise<AgentTransportDescriptor> {
   const current = agentRuntimes.get(sender.id)
-  if (current?.id === sessionId) return current.capabilities()
+  if (current?.id === sessionId && current.matches(state.origin, state.token)) return current.capabilities()
   await disposeAgentRuntime(sender)
   const runtime = new AgentRuntime(
     host,

@@ -35,7 +35,7 @@ pnpm test:contract
 
 ## 仍未完成
 
-- 真实 provider/model turn、审批决策和跨平台 Host restart/reconnect 仍需端到端验证；
+- 真实 provider/model turn、审批决策和跨平台 Host restart/reconnect 仍需端到端验证；同一 runtime 的下一次 send/resume 会在 Session WebSocket 断开后重连，Main 在 Host origin/token 变化时重建 runtime；
 - `workspace/changes` 目前投影 changed paths，Workbench ChangesPanel 可加载当前 Git diff，并通过 authenticated `changes.summary`/`changes.diff` route 读取 Agent 前后 diff；固定项目 test command、取消和退出清理已接入。watcher 冲突、test-result-to-turn 关联和 per-hunk review 仍待接入；
 - 上游 child IPC 本身没有 turn 消息；turn channel 使用 Host 已有的 authenticated Remote API，不把 child IPC 误报为 turn protocol；
 - 只有 native channel 通过真实 Session/model/restart smoke 后，才考虑把它设为默认 Agent surface。

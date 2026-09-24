@@ -46,7 +46,7 @@
 | Turn Controller 状态机 | contract 已验证 | `pnpm test:contract` 覆盖 start/running/approval/cancel/resume/complete/dispose 事件顺序；`AgentRuntime` 已接入 Main IPC |
 | Change Projection 纯函数 | contract 已验证 | 覆盖 Agent/user/formatter、冲突、revert、排序和路径安全；尚未接入 watcher/Session/UI |
 | 选区发送 | 已实现未自动化 | `buildContextBundle` 生成 bounded structured selection payload；native AgentRuntime 将其写入 Session user message，剪贴板/iframe 仍作为 fallback |
-| Turn 原生投影 | 部分验证 | `AgentRuntime` 接入 `session/prompt`/`session/follow`，tool/approval/change/terminal events 已通过本地 fixture；`smoke:native-turn` 用真实 Harness loop + mock provider 验证 prompt/context/Session log，外部 provider 和 Host restart 仍待验证 |
+| Turn 原生投影 | 部分验证 | `AgentRuntime` 接入 `session/prompt`/`session/follow`，tool/approval/change/terminal events 和 WebSocket reconnect 已通过本地 fixture；`smoke:native-turn` 用真实 Harness loop + mock provider 验证 prompt/context/Session log，外部 provider、跨平台 reconnect 和完整 review 仍待验证 |
 | Agent diff attribution | 部分验证 | `workspace/changes` changed paths 已投影，ChangesPanel 可按 turn 加载当前 Git diff；`agent.review` 可读取 Host 前后 diff，watcher 冲突和 per-hunk Review UI 仍待接入 |
 | Agent review test command | 已实现未自动化 | Main 固定运行项目 `pnpm test`/`npm test`，支持取消、bounded output 和退出清理；fixture 已验证，真实项目矩阵未验证 |
 | Trajectory/审批/工具卡 | 上游能力 | 在 iframe 的 Harness Web UI 中可用，DHD 尚未原生重做 |

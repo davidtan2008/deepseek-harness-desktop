@@ -148,6 +148,8 @@ try {
   assert.match(prompts[0].content[0].text, /\[dhd-context\]/)
   assert.match(prompts[0].content[0].text, /src\/a\.ts/)
   assert.equal(prompts[0].content[1].text, 'complete')
+  socket.close()
+  await new Promise((resolve) => setTimeout(resolve, 50))
 
   await port.sendTurn({ turnId: 'turn-2', text: 'hold', context: [] })
   await waitFor((event) => event.type === 'approval-required' && event.turnId === 'turn-2', 'approval')
