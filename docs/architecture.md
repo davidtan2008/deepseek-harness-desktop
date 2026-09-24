@@ -36,13 +36,14 @@ apps/shell/src/
 ├── windows.ts         # BrowserWindow：contextIsolation:true / nodeIntegration:false
 │                      #   / webviewTag:true / hiddenInset 标题栏(mac)
 ├── menu.ts            # 应用菜单 → 'menu:command' 事件下发给渲染层
-├── ipc.ts             # IPC 注册表（唯一 ipcMain 入口）+ chokidar 项目监听
+├── ipc.ts             # IPC 注册表（唯一 ipcMain 入口）+ 项目监听生命周期
 ├── host.ts            # HostProcess：子进程状态机（见 §4）
 ├── harness-api.ts     # Host HTTP RPC 客户端 + iframe 工作区种子注入（见 §6.1）
 ├── paths.ts           # 路径解析：harness 探测、DSH_HOME、设置/MCP 文件位置
 ├── fs-service.ts      # 目录/文件读写/重命名/删除/系统对话框/在 OS 中显示
 ├── git-service.ts     # git CLI 封装：status/diff/stage/commit/push/pull/branch/log
-├── search-service.ts  # ripgrep 优先（多路径探测 + --json 流式 + 进度/取消），缺失时回退文件系统遍历
+├── project-watcher.ts  # 原生递归 fs.watch；按目录回退，避免大仓库逐文件占用 fd
+├── search-service.ts  # ripgrep 优先（多路径探测 + --json 流式 + 进度/取消），启动/运行失败回退 JS 遍历
 ├── pty-service.ts     # node-pty 集成终端（prebuilds 布局 + 执行位自修复），失败回退 python 桥/script/管道 shell
 ├── mcp-service.ts     # MCP server 配置读写 → ~/.dsh/desktop-mcp.patch.yml
 ├── settings-store.ts  # 应用设置持久化 → userData/settings.json
@@ -72,6 +73,8 @@ packages/shared/src/
 └── index.ts           # 常量（PRODUCT_*/PROTOCOL/CREDENTIAL_REF）与工具函数
 ```
 
+项目文件监听使用 Node 原生递归 `fs.watch`，不支持递归的平台退回按目录监听；不会为每个文件保留一个持久文件描述符。搜索和 Host 退出都纳入主进程的统一清理流程。
+
 ## 3. IPC 契约
 
 契约的**唯一真源**是 `packages/shared/src/protocol.ts`。Renderer 通过 preload 暴露的 `dhd()` API 调用，Main 侧在 `ipc.ts` 集中注册。
@@ -86,7 +89,7 @@ packages/shared/src/
 | `fs.` | readDir / readFile / writeFile / stat / mkdir / createFile / rename / remove / reveal | 文件系统 |
 | `search.` | files / content / cancel | 快开过滤 / 全局内容搜索（流式 + 进度）/ 取消进行中的搜索 |
 | `git.` | status / diff / stage / unstage / commit / push / pull / checkout / branches / log | SCM |
-| `pty.` | create / write / resize / kill | 终端会话 |
+| `pty.` | acquire / write / resize / kill | 按窗口与项目持有终端会话；acquire 返回重连所需的输出回放 |
 | `host.` | status / restart | Host 查询与重启 |
 | `workspace.` | sync | 把当前项目注册为 harness workspace 并切换 AgentPanel（见 §6.1） |
 | `credentials.` | has / set / clear | API Key |
@@ -99,9 +102,9 @@ packages/shared/src/
 |---|---|---|
 | `host:changed` | `HostState` | host.ts 状态机每次迁移 |
 | `settings:changed` | `AppSettings` | 设置写入后广播 |
-| `fs:changed` | `{ path, type }` | chokidar 监听项目目录（忽略 node_modules/.git/dist/out，深度 8） |
+| `fs:changed` | `{ path, type }` | 原生递归目录监听（忽略 node_modules/.git/dist/out，深度 8） |
 | `pty:data` / `pty:exit` | `{ id, data/exitCode }` | 终端输出与退出 |
-| `search:progress` | `{ requestId, phase, count }` | 流式搜索命中数（250ms 节流），phase: running/done/cancelled |
+| `search:progress` | `{ requestId, phase, count }` | 流式搜索命中数（250ms 节流），phase: running/done |
 | `menu:command` | `string` | 菜单/快捷键命令（渲染层再以 DOM CustomEvent `dhd-menu` 分发） |
 
 ## 4. Host 生命周期（`host.ts`）
@@ -119,7 +122,7 @@ node --import tsx/esm <harness>/apps/cli/src/bin.ts web [--patch ~/.dsh/desktop-
 
 3. 解析 stdout 中 `dsh web: <url>` 行得到带 token 的 URL → `ready`；90 秒超时或进程先退 → `error`（附诊断提示：3080 端口已有 Host 需带 token 复用、或子模块未 install/build）
 
-**关键细节**：`--patch` 是 launcher 级参数必须紧跟 `web`；`--port 0` 由 OS 分配空闲端口，不与已有 `dsh web` 冲突；退出时 SIGTERM 优雅停止，4 秒后 SIGKILL。
+**关键细节**：`--patch` 是 launcher 级参数必须紧跟 `web`；`--port 0` 由 OS 分配空闲端口，不与已有 `dsh web` 冲突。桌面退出先停止并等待自有 Host 的进程组退出，再放行 Electron 退出；2 秒未退出时升级 SIGKILL，并再次等待。`DHD_HARNESS_URL` 接入的外部 Host 不由桌面端终止。
 
 ## 5. Harness 根目录探测（`paths.ts`）
 
@@ -158,7 +161,7 @@ node --import tsx/esm <harness>/apps/cli/src/bin.ts web [--patch ~/.dsh/desktop-
 
 ## 8. 构建与打包
 
-- **shell**：esbuild 打包为 ESM（`dist/main.js`）+ CJS preload（`dist/preload.cjs`），electron/electron-updater/node-pty/chokidar/yaml 外置；`pty-bridge.py` 复制到 dist。
+- **shell**：esbuild 打包为 ESM（`dist/main.js`）+ CJS preload（`dist/preload.cjs`），electron/electron-updater/node-pty/yaml 外置；`pty-bridge.py` 复制到 dist。
 - **workbench**：Vite 6 静态产物；开发时 Main 经 `ELECTRON_RENDERER_URL` 加载 5173，打包后 `loadFile` 本地 HTML。
 - **electron-builder**：appId `com.deepseek.harness.desktop`；mac（dmg+zip，hardenedRuntime）、win（nsis+zip）、linux（AppImage+deb）；extraResources 携带 workbench 产物、desktop-profile overlay 与 pty-bridge.py；`publish: github` 预留自动更新流。
 - **CI**：三平台矩阵执行 `pnpm install --frozen-lockfile` → shared build → typecheck → build（不依赖 harness 子模块内容）。

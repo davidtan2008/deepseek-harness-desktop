@@ -61,7 +61,7 @@ pnpm dev
 
 **源代码管理**：状态、diff、暂存/取消暂存、提交、推送、拉取、分支切换。
 
-**搜索**：文件名快开 + 全局内容搜索。内容搜索走 `rg --json` 流式解析，文件名枚举走 `rg --files`，均自动忽略 node_modules/.git/dist 等目录并尊重 .gitignore；未安装 ripgrep 时回退 JS 文件系统遍历（慢 2~3 个数量级，建议 `brew install ripgrep`）。搜索过程显示实时命中数（250ms 节流），内容结果先渲染、文件名结果随后补充，可随时停止并保留已命中的部分结果。
+**搜索**：文件名快开 + 全局内容搜索。内容搜索走 `rg --json` 流式解析，文件名枚举走 `rg --files`，均自动忽略 node_modules/.git/dist 等目录并尊重 .gitignore；未安装或无法启动 ripgrep 时回退 JS 文件系统遍历（慢 2~3 个数量级，建议 `brew install ripgrep`）。搜索过程显示实时命中数（250ms 节流），内容结果先渲染、文件名结果随后补充，可随时停止并保留已命中的部分结果；搜索启动或运行失败会显示错误，不会伪装成“没有匹配”。
 
 **MCP**：设置 → MCP 面板添加 server（stdio 或 streamable-http），保存至 `~/.dsh/desktop-mcp.patch.yml`，重启 Host 后生效。
 
@@ -124,9 +124,16 @@ pnpm install
 
 **重置应用**：删除 `userData` 目录（macOS：`~/Library/Application Support/deepseek-harness-desktop`）与 `~/.dsh/`（会丢会话历史，慎操作）。
 
+**关闭窗口后退出很慢**
+
+- macOS 关闭窗口默认只关闭工作台，Host 会在 Dock 应用仍存活时继续运行；从 Dock 的“退出”触发完整清理。
+- 退出会先停止项目监听、搜索、终端会话和自有 Harness Host，等待子进程退出后再结束 Electron；不需要手动结束 Vite 或 Host 进程。
+
 ## 8. 已知问题与排查记录
 
-以下问题已在当前版本修复，记录根因供后续排查同类问题参考（详细调查过程见 [docs/project-overview.md](project-overview.md)）：
+以下问题已在当前版本修复，记录根因供后续排查同类问题参考（架构与生命周期说明见 [docs/architecture.md](architecture.md)）：
 
 1. **终端切 Tab 后报 "[process exited 0]"（已修复）**：根因是旧设计"终端面板卸载即杀会话"与 React StrictMode 双挂载叠加——kill 必然落在 shell 启动窗口内（zsh 首个提示符需 0.8~1.4s，kill 在 spawn 后几毫秒内即发生），此时被杀的 shell 恰好以 exitCode 0 退出，呈现为"[process exited 0]"。现改为会话常驻 + 重连回放模型（`pty.acquire`），切 Tab 不再影响会话。
-2. **安装 ripgrep 后搜索显示无结果（已修复）**：内容命中实际 250ms 内已就绪，但文件名枚举存在 O(n²) 性能缺陷（全量结果逐行重过滤，万级文件仓库需 ~50s），而面板等两路结果齐了才渲染，导致"永远搜不到"。现文件名枚举改为增量计数（50ms），内容结果独立先行渲染。
+2. **安装 ripgrep 后搜索显示无结果（已修复）**：内容命中实际 250ms 内已就绪，但文件名枚举存在 O(n²) 性能缺陷（全量结果逐行重过滤，万级文件仓库需 ~50s），而面板等两路结果齐了才渲染，导致"永远搜不到"。现文件名枚举改为增量计数，内容结果独立先行渲染。
+3. **Electron 搜索报 `spawn EBADF`（已修复）**：旧项目监听器为每个文件保留一个 fd；大仓库耗尽 Electron 的可用 fd 后，搜索和 Git 的子进程都无法创建。现使用原生递归目录监听，并让搜索在 ripgrep 启动/运行失败时回退 JS 遍历。
+4. **关闭窗口后 Dock 退出很慢（已修复）**：旧退出路径异步丢弃 Host/PTY 清理请求，且没有关闭文件监听。现由主进程统一取消任务、停止进程组并等待退出，清理完成后才放行 Electron 退出。

@@ -9,6 +9,10 @@
 
 ### Fixed
 
+- **Electron 搜索 `spawn EBADF` / Git 子进程无法启动**：项目监听器此前通过 chokidar 为大仓库中的每个文件保留持久 fd，耗尽 Electron 的文件描述符后，主进程无法再创建 `rg` 或 `git` 子进程。现改用原生递归 `fs.watch`（不支持递归的平台按目录回退），并在退出时显式关闭监听器。
+- **搜索启动失败被伪装成无结果**：`searchContent` 现在捕获同步/异步 ripgrep 启动与运行失败，等待子进程关闭后回退 JavaScript 遍历；UI 区分搜索错误与无匹配，并在新查询/取消/卸载时清理旧状态。
+- **关闭窗口后 Dock 退出很慢**：主进程现在统一取消搜索、关闭项目监听、停止并等待 PTY 与自有 Harness Host 的进程组退出，清理完成后才放行 Electron 退出；开发启动器转发终止信号并保留正确的退出码。
+
 - **终端无法启动（pty.create 报 spawn EBADF）**：`tryNodePty` 仍按旧版布局检查 `build/Release/spawn-helper`，而 node-pty ≥ 1.1 改用 `prebuilds/<platform>-<arch>/`，导致原生 PTY 后端被永久跳过、落入管道回退链。现同时探测两种布局，并在首次使用时为缺失执行位的 `spawn-helper` 恢复 0755（pnpm 安装的预构建产物为 0644，posix_spawnp 会以 EACCES 拒绝）。管道回退链同步加固：python 桥在第 4 个 fd 触发 EBADF 时自动降级为三管道（仅失去 resize），macOS 增加 `script -q /dev/null` 真 PTY 回退层；修正 Windows 下 PATH 拼接误用 `:` 的分隔符 bug。
 - **搜索缓慢且无进度**：`execFile('rg')` 在 GUI 启动（PATH 不含 rg）时静默 ENOENT，始终退化为慢速 JS 遍历。现一次性探测 `RIPGREP_PATH`、常见安装位置与 PATH（未安装 ripgrep 时可 `brew install ripgrep` 提速两个数量级）；内容搜索改为 `rg --json` 流式解析，命中上限即终止子进程；`listFiles` 优先 `rg --files`。新增 `search:progress` 事件（250ms 节流）与 `search.cancel` 通道；搜索框 300ms 防抖自动搜索，显示实时命中数并可随时停止；取消后返回已命中的部分结果。
 - **安装 ripgrep 后搜索仍显示无结果**：`listFiles` 的早停回调对每一行都对全量累计结果重跑 `relative()` + 过滤（O(n²)，本仓库 9639 文件 ≈ 4600 万次运算，实测 49.7s），而搜索面板等文件名与内容两路结果全部就绪才渲染——内容命中其实 250ms 内已就绪却永远显示不出来。现改为逐行增量计数（同仓库实测 50ms），内容结果独立先行渲染，文件名结果随后补充。

@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { constants as osConstants } from 'node:os'
 import { createRequire } from 'node:module'
 import { setTimeout as delay } from 'node:timers/promises'
 
@@ -23,4 +24,25 @@ const child = spawn(electronBin, ['./dist/main.js'], {
   stdio: 'inherit',
   env: { ...process.env, ELECTRON_RENDERER_URL: url },
 })
-child.on('exit', (code) => process.exit(code ?? 0))
+let stopping = false
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => {
+    if (stopping) {
+      try { child.kill('SIGKILL') } catch { /* already gone */ }
+      return
+    }
+    stopping = true
+    try { child.kill(signal) } catch { /* already gone */ }
+  })
+}
+child.on('error', (error) => {
+  console.error(`[shell] Electron launch failed: ${error.message}`)
+  process.exit(1)
+})
+child.on('close', (code, signal) => {
+  if (signal) {
+    const signalNumber = osConstants.signals[signal]
+    process.exit(128 + (signalNumber ?? 1))
+  }
+  process.exit(code ?? 1)
+})

@@ -9,7 +9,7 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "dev": "pnpm --filter @dhd/shared build && concurrently -k \"pnpm --filter @dhd/workbench dev\" \"pnpm --filter @dhd/shell dev\"",
+    "dev": "pnpm --filter @dhd/shared build && concurrently -k --kill-timeout 2000 --names workbench,shell --success command-shell \"pnpm --filter @dhd/workbench dev\" \"pnpm --filter @dhd/shell dev\"",
     "build": "pnpm --filter @dhd/shared build && pnpm --filter @dhd/workbench build && pnpm --filter @dhd/shell build",
     "typecheck": "pnpm --filter @dhd/shared build && pnpm -r typecheck",
     "pack": "pnpm build && pnpm --filter @dhd/shell pack:app",

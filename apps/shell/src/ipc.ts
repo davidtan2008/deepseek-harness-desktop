@@ -1,5 +1,4 @@
 import { BrowserWindow, ipcMain, shell as electronShell } from 'electron'
-import { watch, type FSWatcher } from 'chokidar'
 import type { AppSettings, McpServerConfig, PtyOptions, SearchPhase, WorkspaceSyncResult } from '@dhd/shared'
 import { hasApiKey, setApiKey, clearApiKey } from './credentials.ts'
 import { HarnessApi, seedHarnessSession } from './harness-api.ts'
@@ -8,9 +7,10 @@ import * as git from './git-service.ts'
 import { runInlineEdit } from './inline-edit.ts'
 import { listRuleFiles, loadMcp, saveMcp } from './mcp-service.ts'
 import { acquirePty, killPty, killSessionsOfOwner, resizePty, writePty } from './pty-service.ts'
-import { cancelSearch, listFiles, searchContent } from './search-service.ts'
+import { cancelAllSearches, cancelSearch, listFiles, searchContent } from './search-service.ts'
 import { loadSettings, rememberProject, saveSettings } from './settings-store.ts'
 import type { HostProcess } from './host.ts'
+import { watchProject, type ProjectWatcher } from './project-watcher.ts'
 
 export interface IpcContext {
   host: HostProcess
@@ -18,7 +18,12 @@ export interface IpcContext {
   openWindow: (projectPath?: string) => void
 }
 
-let watcher: FSWatcher | undefined
+let watcher: ProjectWatcher | undefined
+
+export function stopWatching(): void {
+  watcher?.close()
+  watcher = undefined
+}
 
 export function registerIpc(ctx: IpcContext): void {
   ipcMain.handle('app.version', () => process.env.npm_package_version ?? '0.1.0')
@@ -70,7 +75,8 @@ export function registerIpc(ctx: IpcContext): void {
   ipcMain.handle('search.files', (_e, root: string, query: string) => listFiles(root, query))
 
   const searchProgress = (sender: Electron.WebContents, requestId: string, phase: SearchPhase, count: number): void => {
-    if (!sender.isDestroyed()) sender.send('search:progress', { requestId, phase, count })
+    if (sender.isDestroyed()) return
+    try { sender.send('search:progress', { requestId, phase, count }) } catch { /* window closed during shutdown */ }
   }
   ipcMain.handle('search.content', async (e, root: string, query: string, requestId: string) => {
     const hits = await searchContent(root, query, requestId, {
@@ -162,16 +168,10 @@ export function registerIpc(ctx: IpcContext): void {
 }
 
 function startWatch(projectPath: string, ctx: IpcContext): void {
-  void watcher?.close()
-  watcher = watch(projectPath, {
-    ignoreInitial: true,
-    ignored: /(^|[/\\])(node_modules|\.git|dist|out)([/\\]|$)/,
-    depth: 8,
-  })
-  watcher.on('all', (event, path) => {
-    const type = event === 'add' || event === 'addDir' || event === 'change' || event === 'unlink' || event === 'unlinkDir'
-      ? event
-      : 'change'
-    ctx.getWindow()?.webContents.send('fs:changed', { path, type })
+  stopWatching()
+  watcher = watchProject(projectPath, (path, type) => {
+    const target = ctx.getWindow()
+    if (!target || target.isDestroyed() || target.webContents.isDestroyed()) return
+    try { target.webContents.send('fs:changed', { path, type }) } catch { /* window closed during shutdown */ }
   })
 }

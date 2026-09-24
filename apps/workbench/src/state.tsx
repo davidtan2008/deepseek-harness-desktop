@@ -60,8 +60,7 @@ interface AppModel {
 const Ctx = createContext<AppModel | null>(null)
 
 function projectFromUrl(): string | undefined {
-  const raw = new URLSearchParams(window.location.search).get('project')
-  return raw ? decodeURIComponent(raw) : undefined
+  return new URLSearchParams(window.location.search).get('project') ?? undefined
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {

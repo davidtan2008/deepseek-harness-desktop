@@ -16,7 +16,7 @@ await build({
   format: 'esm',
   target: 'node22',
   sourcemap: true,
-  external: ['electron', 'electron-updater', 'node-pty', 'chokidar', 'yaml'],
+  external: ['electron', 'electron-updater', 'node-pty', 'yaml'],
 })
 
 await build({

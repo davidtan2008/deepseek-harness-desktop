@@ -11,6 +11,7 @@ interface PtyHandle {
   write: (data: string) => void
   resize: (cols: number, rows: number) => void
   kill: () => void
+  forceKill: () => void
   onData: (cb: (data: string) => void) => void
   onExit: (cb: (e: { exitCode: number }) => void) => void
 }
@@ -57,9 +58,10 @@ function shellEnv(): Record<string, string> {
 }
 
 function wrapPipes(child: ChildProcessWithoutNullStreams, resizeStream?: NodeJS.WritableStream): PtyHandle {
+  let exited = false
   return {
     write: (data) => {
-      if (!child.killed && child.stdin.writable) child.stdin.write(data)
+      if (!exited && child.stdin.writable) child.stdin.write(data)
     },
     resize: (cols, rows) => {
       if (resizeStream && 'writable' in resizeStream && resizeStream.writable) {
@@ -67,15 +69,36 @@ function wrapPipes(child: ChildProcessWithoutNullStreams, resizeStream?: NodeJS.
       }
     },
     kill: () => {
-      if (!child.killed) child.kill()
+      if (!exited) {
+        try { child.kill('SIGTERM') } catch { /* already gone */ }
+      }
+    },
+    forceKill: () => {
+      if (process.platform === 'win32') {
+        try { child.kill('SIGKILL') } catch { /* already gone */ }
+        return
+      }
+      try {
+        if (child.pid !== undefined) process.kill(-child.pid, 'SIGKILL')
+        else child.kill('SIGKILL')
+      } catch {
+        try { child.kill('SIGKILL') } catch { /* already gone */ }
+      }
     },
     onData: (cb) => {
       child.stdout.on('data', (buf: Buffer) => cb(buf.toString('utf8')))
       child.stderr.on('data', (buf: Buffer) => cb(buf.toString('utf8')))
     },
     onExit: (cb) => {
-      child.on('error', () => cb({ exitCode: 1 }))
-      child.on('exit', (code) => cb({ exitCode: code ?? 0 }))
+      let notified = false
+      const notify = (exitCode: number): void => {
+        if (notified) return
+        notified = true
+        exited = true
+        cb({ exitCode })
+      }
+      child.once('error', () => notify(1))
+      child.once('exit', (code) => notify(code ?? 0))
     },
   }
 }
@@ -91,6 +114,7 @@ function spawnPiped(
     const child = spawn(command, args, {
       cwd,
       env,
+      detached: process.platform !== 'win32',
       stdio: extraFd ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
     })
     const resizeStream = extraFd ? (child.stdio[3] as NodeJS.WritableStream | null) ?? undefined : undefined
@@ -138,20 +162,39 @@ function tryNodePty(shell: string, cwd: string, cols: number, rows: number, env:
     }
     const mod = req('node-pty') as {
       spawn: (file: string, args: string[], opts: object) => {
+        pid: number
         write: (data: string) => void
         resize: (cols: number, rows: number) => void
-        kill: () => void
+        kill: (signal?: string) => void
         onData: (cb: (data: string) => void) => void
         onExit: (cb: (e: { exitCode: number }) => void) => void
       }
     }
-    return mod.spawn(shell, process.platform === 'win32' ? [] : ['-il'], {
+    const terminal = mod.spawn(shell, process.platform === 'win32' ? [] : ['-il'], {
       cwd,
       cols,
       rows,
       env,
       name: 'xterm-256color',
     })
+    return {
+      write: (data) => terminal.write(data),
+      resize: (cols, rows) => terminal.resize(cols, rows),
+      kill: () => {
+        try { terminal.kill() } catch { /* already gone */ }
+      },
+      forceKill: () => {
+        if (process.platform === 'win32') {
+          try { terminal.kill('SIGKILL') } catch { /* already gone */ }
+          return
+        }
+        try { process.kill(-terminal.pid, 'SIGKILL') } catch {
+          try { terminal.kill('SIGKILL') } catch { /* already gone */ }
+        }
+      },
+      onData: (cb) => terminal.onData(cb),
+      onExit: (cb) => terminal.onExit(cb),
+    }
   } catch (err) {
     console.warn('[pty] node-pty spawn failed, falling back:', err)
     return undefined
@@ -262,11 +305,21 @@ interface Session {
   write: (data: string) => void
   resize: (cols: number, rows: number) => void
   kill: () => void
+  forceKill: () => void
+  done: Promise<void>
+  stopping: boolean
+  resolveDone: () => void
+  forceTimer?: ReturnType<typeof setTimeout>
+  stopTimer?: ReturnType<typeof setTimeout>
 }
 
 const sessions = new Map<string, Session>()
 const pendingAcquires = new Map<string, Promise<PtyAcquireResult>>()
+const closedOwners = new Set<number>()
+let shutdownRequested = false
 const REPLAY_CAP = 256 * 1024
+const PTY_STOP_GRACE_MS = 500
+const PTY_STOP_TIMEOUT_MS = 2000
 
 function findSession(owner: number, cwdKey: string): Session | undefined {
   for (const session of sessions.values()) {
@@ -282,23 +335,51 @@ function findSession(owner: number, cwdKey: string): Session | undefined {
  * double-mount) share one spawn. Acquiring a different project kills this
  * window's previous session (single-terminal model).
  */
+function finishSession(session: Session): void {
+  if (session.forceTimer) clearTimeout(session.forceTimer)
+  if (session.stopTimer) clearTimeout(session.stopTimer)
+  session.forceTimer = undefined
+  session.stopTimer = undefined
+  if (sessions.get(session.id) === session) sessions.delete(session.id)
+  session.resolveDone()
+}
+
+function stopSession(session: Session): Promise<void> {
+  if (session.stopping) return session.done
+  session.stopping = true
+  try { session.kill() } catch { /* already gone */ }
+  if (sessions.get(session.id) !== session) return session.done
+  session.forceTimer = setTimeout(() => {
+    try { session.forceKill() } catch { /* already gone */ }
+  }, PTY_STOP_GRACE_MS)
+  session.stopTimer = setTimeout(() => {
+    try { session.forceKill() } catch { /* already gone */ }
+    finishSession(session)
+  }, PTY_STOP_TIMEOUT_MS)
+  return session.done
+}
+
 export async function acquirePty(
   options: PtyOptions,
   owner: number,
   onData: (id: string, data: string) => void,
   onExit: (id: string, exitCode: number) => void,
 ): Promise<PtyAcquireResult> {
+  if (shutdownRequested || closedOwners.has(owner)) throw new Error('PTY owner is closed')
   const cwdKey = options.cwd ?? ''
   const key = `${owner}::${cwdKey}`
   const inFlight = pendingAcquires.get(key)
   if (inFlight) return inFlight
 
   const promise = (async (): Promise<PtyAcquireResult> => {
-    for (const [id, session] of sessions) {
-      if (session.owner === owner && session.cwdKey !== cwdKey) killPty(id)
+    for (const session of sessions.values()) {
+      if (session.owner === owner && session.cwdKey !== cwdKey) void stopSession(session)
     }
     const existing = findSession(owner, cwdKey)
-    if (existing) return { id: existing.id, replay: existing.replay }
+    if (existing) {
+      if (!existing.stopping) return { id: existing.id, replay: existing.replay }
+      await existing.done
+    }
 
     const id = randomUUID()
     const shell = resolveShell()
@@ -308,10 +389,14 @@ export async function acquirePty(
     const rows = Math.max(options.rows || 0, 24)
 
     let proc = tryNodePty(shell, cwd, cols, rows, env)
-    if (!proc) {
-      proc = await spawnFallback(shell, cwd, env, cols, rows)
+    if (!proc) proc = await spawnFallback(shell, cwd, env, cols, rows)
+    if (shutdownRequested || closedOwners.has(owner)) {
+      try { proc.forceKill() } catch { /* already gone */ }
+      throw new Error('PTY owner closed while starting')
     }
 
+    let resolveDone!: () => void
+    const done = new Promise<void>((resolve) => { resolveDone = resolve })
     const session: Session = {
       id,
       owner,
@@ -320,14 +405,19 @@ export async function acquirePty(
       write: (data) => proc.write(data),
       resize: (c, r) => proc.resize(Math.max(c, 2), Math.max(r, 2)),
       kill: () => proc.kill(),
+      forceKill: () => proc.forceKill(),
+      done,
+      stopping: false,
+      resolveDone,
     }
     proc.onData((data) => {
-      session.replay = session.replay + data
+      if (session.stopping) return
+      session.replay += data
       if (session.replay.length > REPLAY_CAP) session.replay = session.replay.slice(-REPLAY_CAP)
       onData(id, data)
     })
     proc.onExit((e) => {
-      sessions.delete(id)
+      finishSession(session)
       onExit(id, e.exitCode)
     })
     sessions.set(id, session)
@@ -343,25 +433,30 @@ export async function acquirePty(
 }
 
 export function writePty(id: string, data: string): void {
-  sessions.get(id)?.write(data)
+  const session = sessions.get(id)
+  if (session && !session.stopping) session.write(data)
 }
 
 export function resizePty(id: string, cols: number, rows: number): void {
-  sessions.get(id)?.resize(cols, rows)
+  const session = sessions.get(id)
+  if (session && !session.stopping) session.resize(cols, rows)
 }
 
-export function killPty(id: string): void {
-  sessions.get(id)?.kill()
-  sessions.delete(id)
+export function killPty(id: string): Promise<void> {
+  const session = sessions.get(id)
+  return session ? stopSession(session) : Promise.resolve()
 }
 
-export function killSessionsOfOwner(owner: number): void {
-  for (const [id, session] of sessions) {
-    if (session.owner === owner) killPty(id)
-  }
+export function killSessionsOfOwner(owner: number): Promise<void> {
+  closedOwners.add(owner)
+  return Promise.all([...sessions.values()]
+    .filter((session) => session.owner === owner)
+    .map((session) => stopSession(session))).then(() => undefined)
 }
 
-export function killAllPty(): void {
-  for (const session of sessions.values()) session.kill()
-  sessions.clear()
+export function killAllPty(): Promise<void> {
+  shutdownRequested = true
+  const active = [...sessions.values()].map((session) => stopSession(session))
+  const pending = [...pendingAcquires.values()]
+  return Promise.all([...active, ...pending]).then(() => undefined)
 }

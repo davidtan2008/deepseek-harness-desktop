@@ -1,5 +1,5 @@
-import { spawn } from 'node:child_process'
-import { accessSync, constants } from 'node:fs'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { accessSync, constants, statSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, relative } from 'node:path'
@@ -16,13 +16,14 @@ interface RunningSearch {
 }
 
 const running = new Map<string, RunningSearch>()
+const activeChildren = new Set<ChildProcess>()
 
 let rgProbe: string | undefined | null = null
 
 function isExecutable(path: string): boolean {
   try {
     accessSync(path, constants.X_OK)
-    return true
+    return statSync(path).isFile()
   } catch {
     return false
   }
@@ -60,7 +61,7 @@ export async function listFiles(root: string, query = '', limit = 200): Promise<
     const matches = (line: string): boolean =>
       !needle || relative(root, line).toLowerCase().includes(needle)
     let matched = 0
-    const out = await collectLines(rg, ['--files', ...rgExcludes(), root], (line) => {
+    const out = await collectLines(rg, ['--no-config', '--files', ...rgExcludes(), root], (line) => {
       if (matches(line)) matched += 1
       return matched >= limit
     })
@@ -127,18 +128,42 @@ export async function searchContent(
   limit = 200,
 ): Promise<FileSearchHit[]> {
   const needle = query.trim()
-  if (!needle) return []
   running.get(requestId)?.cancel()
+  if (!needle) return []
 
   const hits: FileSearchHit[] = []
   let cancelled = false
-  let child: ReturnType<typeof spawn> | undefined
+  let child: ChildProcess | undefined
+  let fallbackStarted = false
+  let processFailed = false
+  let limitReached = false
 
   const done = new Promise<FileSearchHit[]>((resolve) => {
+    let finished = false
     const finish = (): void => {
+      if (finished) return
+      finished = true
       running.delete(requestId)
       resolve(hits)
     }
+    const fallback = (): void => {
+      if (fallbackStarted || cancelled) return
+      fallbackStarted = true
+      if (child) activeChildren.delete(child)
+      void walkSearch(root, needle, limit, () => cancelled, (count) => cb?.onProgress?.(count))
+        .then((walked) => {
+          if (!cancelled) {
+            hits.length = 0
+            hits.push(...walked)
+          }
+          finish()
+        })
+        .catch((error: unknown) => {
+          console.warn('[search] JavaScript fallback failed:', error)
+          finish()
+        })
+    }
+
     running.set(requestId, {
       cancel: () => {
         cancelled = true
@@ -149,26 +174,48 @@ export async function searchContent(
 
     const rg = resolveRg()
     if (!rg) {
-      void walkSearch(root, needle, limit, () => cancelled, (count) => cb?.onProgress?.(count))
-        .then((walked) => {
-          hits.push(...walked)
-          finish()
-        })
+      fallback()
       return
     }
 
     const args = [
-      '--json', '--no-messages', '--hidden', '-g', '!.git', '-S', '-F',
+      '--no-config', '--json', '--no-messages', '--hidden', '-g', '!.git', '-S', '-F',
       '--max-filesize', '4M',
       ...rgExcludes(),
       '--', needle, root,
     ]
-    child = spawn(rg, args, { stdio: ['ignore', 'pipe', 'ignore'] })
-    const rl = createInterface({ input: child.stdout! })
+    try {
+      child = spawn(rg, args, { stdio: ['ignore', 'pipe', 'ignore'] })
+    } catch (error) {
+      console.warn('[search] ripgrep could not start; using JavaScript fallback:', error)
+      fallback()
+      return
+    }
 
+    const activeChild = child
+    activeChildren.add(activeChild)
+    const stdout = activeChild.stdout
+    if (!stdout) {
+      activeChildren.delete(activeChild)
+      try { activeChild.kill() } catch { /* already gone */ }
+      console.warn('[search] ripgrep returned no stdout; using JavaScript fallback')
+      fallback()
+      return
+    }
+    let rl: ReturnType<typeof createInterface>
+    try {
+      rl = createInterface({ input: stdout })
+    } catch (error) {
+      activeChildren.delete(activeChild)
+      try { activeChild.kill() } catch { /* already gone */ }
+      console.warn('[search] could not read ripgrep output; using JavaScript fallback:', error)
+      fallback()
+      return
+    }
     let lastReport = 0
+
     rl.on('line', (line) => {
-      if (cancelled || hits.length >= limit) return
+      if (cancelled || processFailed || hits.length >= limit) return
       let event: RgMatchEvent
       try {
         event = JSON.parse(line) as RgMatchEvent
@@ -190,16 +237,32 @@ export async function searchContent(
         cb.onProgress(hits.length)
       }
       if (hits.length >= limit) {
-        try { child?.kill() } catch { /* already gone */ }
+        limitReached = true
+        try { activeChild.kill() } catch { /* already gone */ }
       }
     })
-    child.on('exit', () => {
-      rl.close()
-      finish()
+
+    activeChild.once('exit', (code, signal) => {
+      if (!cancelled && !limitReached && (signal !== null || (code !== 0 && code !== 1))) {
+        processFailed = true
+      }
     })
-    child.on('error', () => {
+    activeChild.once('error', (error) => {
+      activeChildren.delete(activeChild)
+      processFailed = true
       try { rl.close() } catch { /* noop */ }
-      finish()
+      try { activeChild.kill() } catch { /* already gone */ }
+      if (!cancelled) {
+        console.warn('[search] ripgrep failed; using JavaScript fallback:', error)
+        fallback()
+      }
+    })
+    activeChild.once('close', () => {
+      activeChildren.delete(activeChild)
+      try { rl.close() } catch { /* noop */ }
+      if (fallbackStarted) return
+      if (processFailed && !cancelled) fallback()
+      else finish()
     })
   })
 
@@ -213,6 +276,29 @@ export function cancelSearch(requestId: string): void {
   running.delete(requestId)
 }
 
+export async function cancelAllSearches(): Promise<void> {
+  for (const requestId of [...running.keys()]) cancelSearch(requestId)
+  const children = [...activeChildren]
+  for (const child of children) {
+    try { child.kill() } catch { /* already gone */ }
+  }
+  await Promise.all(children.map((child) => new Promise<void>((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve()
+      return
+    }
+    const timer = setTimeout(resolve, 750)
+    const finish = (): void => {
+      clearTimeout(timer)
+      child.off('close', finish)
+      child.off('error', finish)
+      resolve()
+    }
+    child.once('close', finish)
+    child.once('error', finish)
+  })))
+}
+
 /**
  * Collect stdout lines until the child exits; `shouldStop` receives each new
  * line and may request an early kill by returning true (used for result caps).
@@ -224,28 +310,39 @@ function collectLines(
 ): Promise<string[]> {
   return new Promise((resolve) => {
     const lines: string[] = []
-    let child: ReturnType<typeof spawn>
+    let child: ChildProcess
     try {
       child = spawn(command, args, { stdio: ['ignore', 'pipe', 'ignore'] })
     } catch {
       resolve([])
       return
     }
-    const rl = createInterface({ input: child.stdout! })
+    activeChildren.add(child)
+    const stdout = child.stdout
+    if (!stdout) {
+      activeChildren.delete(child)
+      resolve([])
+      return
+    }
+    const rl = createInterface({ input: stdout })
+    let stopped = false
+    let settled = false
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      activeChildren.delete(child)
+      try { rl.close() } catch { /* noop */ }
+      resolve(lines)
+    }
     rl.on('line', (line) => {
       lines.push(line)
-      if (shouldStop?.(line) === true) {
+      if (!stopped && shouldStop?.(line) === true) {
+        stopped = true
         try { child.kill() } catch { /* already gone */ }
       }
     })
-    child.on('exit', () => {
-      rl.close()
-      resolve(lines)
-    })
-    child.on('error', () => {
-      try { rl.close() } catch { /* noop */ }
-      resolve([])
-    })
+    child.once('error', finish)
+    child.once('close', finish)
   })
 }
 

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -67,9 +67,68 @@ async function probeUrl(url: string): Promise<boolean> {
   }
 }
 
+function waitForExit(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (): void => {
+      if (settled) return
+      settled = true
+      child.off('exit', finish)
+      child.off('error', finish)
+      child.off('close', finish)
+      resolve()
+    }
+    child.once('exit', finish)
+    child.once('error', finish)
+    child.once('close', finish)
+  })
+}
+
+async function exitsWithin(exit: Promise<void>, milliseconds: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), milliseconds)
+  })
+  try {
+    return await Promise.race([exit.then(() => true), timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/** Signal an owned Host and its descendants without affecting an adopted Host. */
+function signalTree(child: ChildProcess, signal: NodeJS.Signals): void {
+  const pid = child.pid
+  if (pid === undefined) {
+    try { child.kill(signal) } catch { /* already gone */ }
+    return
+  }
+  if (process.platform === 'win32') {
+    if (signal === 'SIGKILL') {
+      try {
+        spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+      } catch {
+        try { child.kill(signal) } catch { /* already gone */ }
+      }
+      return
+    }
+    try { child.kill(signal) } catch { /* already gone */ }
+    return
+  }
+  try {
+    process.kill(-pid, signal)
+  } catch {
+    try { child.kill(signal) } catch { /* already gone */ }
+  }
+}
+
 export class HostProcess {
   private child: ChildProcess | undefined
   private owned = false
+  private stopping = false
+  private lifecycleToken = 0
+  private stopPromise: Promise<void> | undefined
   private state: HostState = { status: 'stopped' }
   private readonly listeners = new Set<HostListener>()
   private buffer = ''
@@ -85,44 +144,67 @@ export class HostProcess {
   }
 
   async start(): Promise<HostState> {
+    if (this.stopPromise) await this.stopPromise
+    if (this.stopping) return this.state
     if (this.state.status === 'ready' || this.state.status === 'starting') return this.state
+    const token = ++this.lifecycleToken
     this.set({ status: 'starting' })
     this.buffer = ''
     this.owned = false
 
     const adopted = await this.adoptExisting()
+    if (this.stopping || token !== this.lifecycleToken) {
+      this.set({ status: 'stopped' })
+      return this.state
+    }
     if (adopted) return this.state
 
     return this.spawnOwned()
   }
 
   async stop(): Promise<void> {
+    if (this.stopPromise) return this.stopPromise
+    this.lifecycleToken += 1
+    this.stopping = true
     const child = this.child
-    this.child = undefined
-    if (!this.owned || !child || child.killed) {
+    if (!this.owned || !child) {
       this.owned = false
-      if (this.state.status === 'ready' && !child) return
       this.set({ status: 'stopped' })
+      this.stopping = false
       return
     }
-    this.owned = false
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        child.kill('SIGKILL')
-        resolve()
-      }, 4000)
-      child.once('exit', () => {
-        clearTimeout(timer)
-        resolve()
-      })
-      child.kill('SIGTERM')
-    })
-    this.set({ status: 'stopped' })
+
+    const promise = this.stopChild(child)
+    this.stopPromise = promise
+    try {
+      await promise
+    } finally {
+      if (this.stopPromise === promise) this.stopPromise = undefined
+      this.stopping = false
+      if (this.child === child && (child.exitCode !== null || child.signalCode !== null)) {
+        this.child = undefined
+        this.owned = false
+      }
+    }
   }
 
   async restart(): Promise<HostState> {
     await this.stop()
     return this.start()
+  }
+
+  private async stopChild(child: ChildProcess): Promise<void> {
+    const exited = waitForExit(child)
+    signalTree(child, 'SIGTERM')
+    if (!await exitsWithin(exited, 2000)) {
+      signalTree(child, 'SIGKILL')
+      if (!await exitsWithin(exited, 1000)) {
+        console.warn('[host] child did not exit after SIGKILL')
+      }
+    }
+    this.owned = false
+    if (this.child === child) this.child = undefined
+    this.set({ status: 'stopped' })
   }
 
   private async adoptExisting(): Promise<boolean> {
@@ -158,57 +240,84 @@ export class HostProcess {
     const env: NodeJS.ProcessEnv = { ...process.env, DSH_HOME: dshHome, DHD_DESKTOP: '1' }
     delete env.ELECTRON_RUN_AS_NODE
     this.owned = true
-    this.child = spawn(command, args, {
-      cwd,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    })
+    let child: ChildProcess
+    try {
+      child = spawn(command, args, {
+        cwd,
+        env,
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+    } catch (error) {
+      this.owned = false
+      this.set({ status: 'error', message: `Harness host could not start: ${String(error)}` })
+      return this.state
+    }
+    this.child = child
 
     return await new Promise((resolve) => {
+      let settled = false
+      const finish = (state: HostState = this.state): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        resolve(state)
+      }
       const timeout = setTimeout(() => {
         if (this.state.status === 'starting') {
           this.set({
             status: 'error',
             message: 'Harness host did not become ready in time. Run pnpm install && pnpm run build inside the harness/ submodule, or set DHD_HARNESS_URL to the printed dsh web URL.',
           })
-          resolve(this.state)
+          signalTree(child, 'SIGTERM')
         }
+        finish(this.state)
       }, 90_000)
 
-      const onData = (chunk: Buffer) => {
+      const onData = (chunk: Buffer): void => {
         const text = chunk.toString('utf8')
-        this.buffer += text
+        this.buffer = `${this.buffer}${text}`.slice(-128 * 1024)
         process.stdout.write(`[dsh] ${text}`)
         const match = this.buffer.match(READY)
-        if (match?.[1]) {
-          clearTimeout(timeout)
+        if (match?.[1] && this.state.status === 'starting') {
           const ready = parseReadyUrl(match[1])
           if (!ready) {
             this.set({ status: 'error', message: `Invalid host URL: ${match[1]}` })
-            resolve(this.state)
+            signalTree(child, 'SIGTERM')
+            finish(this.state)
             return
           }
           this.set(ready)
-          resolve(this.state)
+          finish(this.state)
         }
       }
 
-      this.child?.stdout?.on('data', onData)
-      this.child?.stderr?.on('data', (chunk: Buffer) => {
+      child.stdout?.on('data', onData)
+      child.stderr?.on('data', (chunk: Buffer) => {
         const text = chunk.toString('utf8')
-        this.buffer += text
+        this.buffer = `${this.buffer}${text}`.slice(-128 * 1024)
         process.stderr.write(`[dsh:err] ${text}`)
         onData(chunk)
       })
-      this.child?.on('exit', (code) => {
-        clearTimeout(timeout)
-        this.child = undefined
-        this.owned = false
+      child.once('error', (error) => {
+        if (this.child === child) {
+          this.child = undefined
+          this.owned = false
+        }
+        this.set({ status: 'error', message: `Harness host process failed: ${error.message}` })
+        finish(this.state)
+      })
+      child.once('exit', (code) => {
+        if (this.child === child) {
+          this.child = undefined
+          this.owned = false
+        }
+        if (settled) return
         if (this.state.status !== 'ready') {
-          void this.failWithHint(code).then(resolve)
+          void this.failWithHint(code).then(finish)
         } else {
           this.set({ status: 'stopped' })
-          resolve(this.state)
+          finish(this.state)
         }
       })
     })
@@ -233,6 +342,8 @@ export class HostProcess {
 
   private set(state: HostState): void {
     this.state = state
-    for (const listener of this.listeners) listener(state)
+    for (const listener of this.listeners) {
+      try { listener(state) } catch (error) { console.warn('[host] state listener failed:', error) }
+    }
   }
 }
