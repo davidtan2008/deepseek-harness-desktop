@@ -29,6 +29,7 @@ When sources disagree, fix the stale source or document the discrepancy. Do not 
 - `apps/shell/src/agent/host-ipc-driver.ts`
 - `apps/shell/src/agent/harness-web-session-port.ts`
 - `apps/shell/src/agent-runtime.ts`
+- `apps/shell/src/test-service.ts`
 - `docs/runtime-manifest.md`
 - the affected source and nearest tests
 

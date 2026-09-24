@@ -13,6 +13,7 @@ import { cancelAllSearches, cancelSearch, listFiles, searchContent } from './sea
 import { loadSettings, rememberProject, saveSettings } from './settings-store.ts'
 import type { HostProcess } from './host.ts'
 import { watchProject, type ProjectWatcher } from './project-watcher.ts'
+import { cancelProjectTests, runProjectTests } from './test-service.ts'
 import { loadRuntimeManifest } from './runtime-manifest.ts'
 
 export interface IpcContext {
@@ -242,6 +243,13 @@ export function registerIpc(ctx: IpcContext): void {
     if (runtime === undefined) throw new Error('native Agent Session is not connected')
     return runtime.resume(parseTurnId(turnId))
   })
+  ipcMain.handle('test.run', (e, cwd: unknown) => {
+    if (typeof cwd !== 'string' || cwd.length === 0) throw new Error('test cwd is invalid')
+    const onDestroyed = (): void => { cancelProjectTests(e.sender.id) }
+    e.sender.once('destroyed', onDestroyed)
+    return runProjectTests(cwd, e.sender.id).finally(() => e.sender.off('destroyed', onDestroyed))
+  })
+  ipcMain.handle('test.cancel', (e) => cancelProjectTests(e.sender.id))
 
   const pendingSeed = new WeakMap<Electron.WebContents, { origin: string; sessionId: string }>()
   ipcMain.handle('workspace.sync', async (e, projectPath: string): Promise<WorkspaceSyncResult | { error: string }> => {

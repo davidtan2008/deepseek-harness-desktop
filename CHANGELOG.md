@@ -16,7 +16,7 @@
 - **Context Sources → Session**：新增 bounded `buildContextBundle()`；native `AgentRuntime` 将结构化 context 和用户文本编码为 `session/prompt` 的 user message，Session log 可重建模型可见输入；iframe/clipboard fallback 保留。
 - **Upstream Host IPC lifecycle driver**：新增 `UpstreamHostIpcConnection` / `HostIpcTransportDriver`，支持真实 `dsh-desktop-host` 的 `ready`、`fatal`、`update-tasks`、`shutdown-complete` 和 bounded teardown；`smoke:upstream-host` 已通过。
 - **Native Session vertical slice**：新增 authenticated `session/follow` WebSocket port、per-WebContents `AgentRuntime`、typed `agent.status/send/cancel/resume` IPC 和 `agent:event`；tool/approval/change/terminal events、cancel/resume 和 Session prompt 已由本地 fixture 验证，`smoke:native-turn` 进一步用真实 Harness loop + mock provider 验证 prompt/context 与 Session log。
-- **Agent review 入口**：ChangesPanel 按 `workspace/changes` 的 turn changed paths 加载当前 Git diff，并显示 turn/path 摘要；before/after 历史 diff 和 test command 尚未完成。
+- **Agent review 入口**：ChangesPanel 按 `workspace/changes` 的 turn changed paths 加载当前 Git diff，并显示 turn/path 摘要；新增 Main-owned bounded `pnpm test`/`npm test` runner、取消和退出清理，fixture 已验证。before/after 历史 diff 和 test-result-to-turn 关联尚未完成。
 - **Change Projection contract**：新增只读 `projectChanges()` 纯函数和冲突/revert/路径安全 fixture；尚未接入真实 watcher、Session/tool event 或 Review UI。
 - **Workspace/session smoke**：新增 `pnpm smoke:workspace`，通过真实 Host RPC 验证 `workspace/create` 幂等、session 创建/复用、token/cookie 认证和无残留退出。
 - **Packaged runtime fail-closed**：packaged Host 启动前校验 runtime manifest；缺失或不完整时拒绝静默回退到 `npx`/系统 Node，`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 仅作为本地诊断逃生开关。

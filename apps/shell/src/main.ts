@@ -10,6 +10,7 @@ import { killAllPty } from './pty-service.ts'
 import { loadSettings } from './settings-store.ts'
 import { createWorkbenchWindow } from './windows.ts'
 import { setupUpdater } from './updater.ts'
+import { stopProjectTests } from './test-service.ts'
 
 const userDataOverride = process.env.DHD_USER_DATA?.trim()
 if (userDataOverride) {
@@ -46,7 +47,7 @@ async function disposeApplication(): Promise<void> {
   for (const win of [...windows]) {
     if (!win.isDestroyed()) win.destroy()
   }
-  await Promise.allSettled([searchCleanup, killAllPty(), stopAgentRuntimes(), host.stop()])
+  await Promise.allSettled([searchCleanup, killAllPty(), stopProjectTests(), stopAgentRuntimes(), host.stop()])
 }
 
 app.setName(PRODUCT_NAME)

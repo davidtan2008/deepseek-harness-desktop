@@ -106,6 +106,10 @@ const api: DesktopApi = {
     sync: (projectPath: string) =>
       invoke('workspace.sync', projectPath) as Promise<WorkspaceSyncResult | { error: string }>,
   },
+  test: {
+    run: (cwd: string) => invoke('test.run', cwd),
+    cancel: () => invoke('test.cancel'),
+  },
   credentials: {
     has: () => invoke('credentials.has') as Promise<boolean>,
     set: (value: string) => invoke('credentials.set', value),

@@ -147,6 +147,14 @@ export interface WorkspaceSyncResult {
   agentTransport?: AgentTransportDescriptor
 }
 
+/** Bounded result from the fixed project test command. */
+export interface ProjectTestResult {
+  command: 'pnpm' | 'npm'
+  exitCode: number | null
+  output: string
+  timedOut: boolean
+}
+
 export type SearchPhase = 'running' | 'done' | 'cancelled'
 
 export interface SearchProgressEvent {
@@ -202,6 +210,8 @@ export type IpcChannel =
   | 'agent.send'
   | 'agent.cancel'
   | 'agent.resume'
+  | 'test.run'
+  | 'test.cancel'
   | 'workspace.sync'
   | 'credentials.has'
   | 'credentials.set'

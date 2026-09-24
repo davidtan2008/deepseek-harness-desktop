@@ -73,6 +73,7 @@ apps/shell/src/
 ├── project-watcher.ts      # 原生递归 fs.watch，目录级 fallback
 ├── search-service.ts       # rg 流式搜索、取消、JS fallback
 ├── pty-service.ts          # node-pty 和多级 fallback
+├── test-service.ts         # 固定项目 test command、bounded output、取消/退出 owner
 ├── mcp-service.ts          # MCP overlay
 ├── settings-store.ts       # Desktop settings
 ├── credentials.ts          # safeStorage + DSH_HOME credential ref
@@ -153,7 +154,7 @@ preload 不再暴露 `invoke(channel, ...args)`。Renderer 不能绕过 API 对�
 | 搜索 | files、content、progress、cancel | Main |
 | Git | status、diff、stage、commit、push、pull | Main + git CLI |
 | 终端 | acquire、write、resize、kill、data/exit | Main + PTY |
-| Agent/Host | host status/restart、workspace sync、agent status/send/cancel/resume、agent events | Main + Harness Host |
+| Agent/Host | host status/restart、workspace sync、agent status/send/cancel/resume、agent events、test run/cancel | Main + Harness Host/platform |
 | 配置 | credentials、MCP、rules、inline edit | Main + Harness/platform |
 
 ## 5. 启动、运行和退出时序

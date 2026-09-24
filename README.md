@@ -110,6 +110,7 @@ flowchart LR
 | 集成终端 | ✅ | node-pty → Python/`script`/管道 fallback，Tab 切换保持会话 |
 | Git | ✅ | status/diff/stage/commit/push/pull/branch 基础能力 |
 | Harness Agent | ✅（上游） | iframe 中使用完整 Web UI；native Session controls 为早期 vertical slice，真实 provider/model review loop 尚未完成 |
+| Agent review | ⚠️ | changed paths + 当前 Git diff + 固定项目 test command；before/after/per-hunk review 未完成 |
 | `Cmd/Ctrl+K` | ⚠️ | 直接模型调用的初版，不等同于 Harness turn/审批/diff |
 | MCP / Rules / Skills | ⚠️ | 基础配置/入口；完整插件管理、恢复和市场未完成 |
 | 多 Agent 原生控制面 | ⏳ | 复用上游 subagent/Team，桌面投影和 provider negotiation 计划中 |

@@ -68,6 +68,17 @@ await build({
 
 await build({
   absWorkingDir: join(root, '..'),
+  entryPoints: [join(src, 'test-service.ts')],
+  outfile: join(outdir, 'test-service.mjs'),
+  bundle: true,
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  sourcemap: true,
+})
+
+await build({
+  absWorkingDir: join(root, '..'),
   entryPoints: [join(src, 'harness-api.ts')],
   outfile: join(outdir, 'harness-api.mjs'),
   bundle: true,

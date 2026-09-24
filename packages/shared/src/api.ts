@@ -13,6 +13,7 @@ import type {
   PtyOptions,
   RuleFile,
   WorkspaceSyncResult,
+  ProjectTestResult,
 } from './protocol.js'
 import type { DesktopCapabilities } from './capabilities.js'
 import type { AgentTransportDescriptor, AgentTurnRequest } from './agent-transport.js'
@@ -87,6 +88,10 @@ export interface DesktopApi {
   }
   workspace: {
     sync: (projectPath: string) => Promise<WorkspaceSyncResult | { error: string }>
+  }
+  test: {
+    run: (cwd: string) => Promise<ProjectTestResult>
+    cancel: () => Promise<void>
   }
   credentials: {
     has: () => Promise<boolean>
