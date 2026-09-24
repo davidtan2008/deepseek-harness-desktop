@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const mode = process.argv[2] === 'packaged' ? 'packaged' : 'source'
 const output = join(root, 'apps/shell/runtime-manifest.json')
+const closurePath = join(root, 'apps/shell/runtime-closure/closure.json')
 
 function command(commandName, args) {
   const result = spawnSync(commandName, args, { encoding: 'utf8' })
@@ -27,6 +28,34 @@ function packageJson(path) {
   } catch {
     return {}
   }
+}
+
+function record(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : undefined
+}
+
+function readClosure() {
+  if (mode !== 'packaged' || !existsSync(closurePath)) return null
+  let value
+  try {
+    value = JSON.parse(readFileSync(closurePath, 'utf8'))
+  } catch (error) {
+    throw new Error(`runtime closure descriptor is invalid: ${String(error)}`)
+  }
+  const closure = record(value)
+  const harness = record(closure?.harness)
+  const node = record(closure?.node)
+  const pnpm = record(closure?.pnpm)
+  const ripgrep = record(closure?.ripgrep)
+  if (closure?.schemaVersion !== 1 || typeof closure.platform !== 'string' || typeof closure.arch !== 'string'
+    || !Array.isArray(closure.files) || closure.files.length === 0
+    || harness === undefined || typeof harness.version !== 'string' || typeof harness.commit !== 'string'
+    || node === undefined || typeof node.version !== 'string'
+    || pnpm === undefined || typeof pnpm.version !== 'string'
+    || ripgrep === undefined || typeof ripgrep.version !== 'string') {
+    throw new Error('runtime closure descriptor is incomplete')
+  }
+  return value
 }
 
 function collectInventory(path, logicalPath, entries) {
@@ -69,14 +98,24 @@ function desktopBuildInventory() {
 
 const desktopPackage = packageJson(join(root, 'package.json'))
 const harnessPackage = packageJson(join(root, 'harness/package.json'))
-const pnpmVersion = command('pnpm', ['--version'])
-const rgVersion = command(process.env.RIPGREP_PATH || 'rg', ['--version'])?.split('\n')[0] || null
-// Do not let environment variables claim that a dependency is bundled. The
-// release gate must only be enabled by a real packaging implementation.
-const bundled = { harness: false, node: false, pnpm: false, ripgrep: false }
+const closure = readClosure()
+const bundled = closure === null
+  ? { harness: false, node: false, pnpm: false, ripgrep: false }
+  : { harness: true, node: true, pnpm: true, ripgrep: true }
+const sourceNodeVersion = process.version
+const sourcePnpmVersion = command('pnpm', ['--version'])
+const sourceRgVersion = command(process.env.RIPGREP_PATH || 'rg', ['--version'])?.split(/\r?\n/u)[0] || null
+const harnessCommit = closure?.harness?.commit ?? git(['-C', 'harness', 'rev-parse', 'HEAD']) ?? 'unavailable'
+const harnessVersion = closure?.harness?.version ?? harnessPackage.version ?? 'unavailable'
+const packageManager = closure?.harness?.packageManager ?? harnessPackage.packageManager ?? null
+const platformName = closure?.platform ?? process.platform
+const platformArch = closure?.arch ?? process.arch
+const nodeVersion = closure?.node?.version ?? sourceNodeVersion
+const pnpmVersion = closure?.pnpm?.version ?? sourcePnpmVersion
+const ripgrepVersion = closure?.ripgrep?.version ?? sourceRgVersion
 
 const manifest = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   generatedAt: new Date().toISOString(),
   mode,
   desktop: {
@@ -85,26 +124,27 @@ const manifest = {
     dirty: Boolean(git(['status', '--short'])),
   },
   harness: {
-    commit: git(['-C', 'harness', 'rev-parse', 'HEAD']) ?? 'unavailable',
-    version: harnessPackage.version ?? 'unavailable',
-    packageManager: harnessPackage.packageManager ?? null,
+    commit: harnessCommit,
+    version: harnessVersion,
+    packageManager,
   },
   node: {
-    version: process.version,
+    version: nodeVersion,
   },
   pnpm: {
     version: pnpmVersion,
   },
   platform: {
-    name: process.platform,
-    arch: process.arch,
+    name: platformName,
+    arch: platformArch,
   },
   ripgrep: {
-    available: Boolean(rgVersion),
-    version: rgVersion,
+    available: ripgrepVersion !== null,
+    version: ripgrepVersion,
   },
   inventory: desktopBuildInventory(),
   bundled,
+  closure,
 }
 
 mkdirSync(dirname(output), { recursive: true })

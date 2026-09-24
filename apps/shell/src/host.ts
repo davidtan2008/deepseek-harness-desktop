@@ -2,11 +2,11 @@ import { app } from 'electron'
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import type { HostState } from '@dhd/shared'
-import { harnessRoot, resolveDshHome } from './paths.ts'
+import { harnessRoot, packagedDshEntry, packagedNodePath, resolveDshHome } from './paths.ts'
 import { desktopMcpPatchPath } from './mcp-service.ts'
-import { harnessRuntimeMismatch, loadRuntimeManifest } from './runtime-manifest.ts'
+import { harnessRuntimeMismatch, loadRuntimeManifest, packagedRuntimeMismatch } from './runtime-manifest.ts'
 
 const READY = /dsh web:\s*(https?:\/\/[^\s]+)/
 const DEFAULT_ORIGIN = 'http://127.0.0.1:3080'
@@ -27,6 +27,7 @@ function which(bin: string): string | undefined {
 }
 
 function resolveNode(): string {
+  if (app.isPackaged) return packagedNodePath()
   if (process.env.DHD_NODE?.trim()) return process.env.DHD_NODE
   const fromPath = which('node')
   if (fromPath) return fromPath
@@ -240,16 +241,25 @@ export class HostProcess {
   private async spawnOwned(): Promise<HostState> {
     const runtime = loadRuntimeManifest()
     if (app.isPackaged && process.env.DHD_ALLOW_UNBUNDLED_RUNTIME !== '1') {
-      if (!runtime || runtime.mode !== 'packaged' || !runtime.bundled.harness || !runtime.bundled.node) {
+      if (!runtime || runtime.mode !== 'packaged' || !runtime.bundled.harness || !runtime.bundled.node || !runtime.bundled.pnpm || !runtime.bundled.ripgrep) {
         this.set({
           status: 'error',
           message: 'Packaged runtime is incomplete. Build with the bundled Harness/Node payload, or set DHD_ALLOW_UNBUNDLED_RUNTIME=1 only for local diagnostics.',
         })
         return this.state
       }
+      const closureMismatch = packagedRuntimeMismatch(runtime)
+      if (closureMismatch !== undefined) {
+        this.set({ status: 'error', message: closureMismatch })
+        return this.state
+      }
     }
 
     const harness = harnessRoot()
+    if (app.isPackaged && !harness && process.env.DHD_ALLOW_UNBUNDLED_RUNTIME !== '1') {
+      this.set({ status: 'error', message: 'Packaged Harness runtime is missing. Rebuild the runtime closure before launching the app.' })
+      return this.state
+    }
     if (runtime && harness) {
       const mismatch = harnessRuntimeMismatch(runtime, harness)
       if (mismatch) {
@@ -265,15 +275,26 @@ export class HostProcess {
     let cwd: string | undefined
 
     if (harness) {
-      const bin = join(harness, 'apps/cli/src/bin.ts')
       cwd = harness
-      args = ['--import', 'tsx/esm', bin, ...webArgs]
+      if (app.isPackaged) {
+        command = packagedNodePath()
+        args = [packagedDshEntry(), ...webArgs]
+      } else {
+        const bin = join(harness, 'apps/cli/src/bin.ts')
+        args = ['--import', 'tsx/esm', bin, ...webArgs]
+      }
     } else {
       command = which('npx') ?? 'npx'
       args = ['--yes', '@deepseek-ai/dsh', ...webArgs]
     }
 
-    const env: NodeJS.ProcessEnv = { ...process.env, DSH_HOME: dshHome, DHD_DESKTOP: '1' }
+    const bundledBin = app.isPackaged ? dirname(packagedNodePath()) : undefined
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      DSH_HOME: dshHome,
+      DHD_DESKTOP: '1',
+      ...(bundledBin === undefined ? {} : { PATH: `${bundledBin}${delimiter}${process.env.PATH ?? ''}` }),
+    }
     delete env.ELECTRON_RUN_AS_NODE
     this.owned = true
     this.mode = 'managed'

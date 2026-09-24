@@ -30,6 +30,27 @@ export function credentialsFilePath(): string {
   return join(resolveDshHome(), '.credentials.yaml')
 }
 
+/** Root of the immutable runtime closure copied beside a packaged app. */
+export function packagedRuntimeRoot(): string {
+  return join(process.resourcesPath, 'runtime')
+}
+
+export function packagedNodePath(): string {
+  return join(packagedRuntimeRoot(), 'bin', process.platform === 'win32' ? 'node.exe' : 'node')
+}
+
+export function packagedDshEntry(): string {
+  return join(packagedRuntimeRoot(), 'dsh', 'lib', 'bin.js')
+}
+
+export function packagedPnpmEntry(): string {
+  return join(packagedRuntimeRoot(), 'pnpm', 'bin', 'pnpm.mjs')
+}
+
+export function packagedRipgrepPath(): string {
+  return join(packagedRuntimeRoot(), 'ripgrep', process.platform === 'win32' ? 'rg.exe' : 'rg')
+}
+
 export function desktopPatchPath(): string {
   const packaged = join(process.resourcesPath, 'desktop-profile', 'cordis.patch.yml')
   if (app.isPackaged && existsSync(packaged)) return packaged
@@ -62,9 +83,13 @@ function isHarnessReady(root: string): boolean {
  * 2. in-repo `harness/` submodule once its dependencies are installed
  * 3. legacy sibling layout `<repoRoot>/../deepseek/deepseek-harness` (if ready)
  * 4. in-repo `harness/` submodule with sources only (host surfaces the install hint)
- * 5. `resources/harness` bundled with a packaged app
+ * 5. `Resources/runtime/dsh` closure bundled with a packaged app
  */
 export function harnessRoot(): string | undefined {
+  if (app.isPackaged) {
+    const packaged = join(packagedRuntimeRoot(), 'dsh')
+    return existsSync(packaged) ? packaged : undefined
+  }
   const env = process.env.DHD_HARNESS_ROOT?.trim()
   if (env && existsSync(env)) return resolve(env)
   const submodule = join(repoRoot(), 'harness')
@@ -72,7 +97,5 @@ export function harnessRoot(): string | undefined {
   if (isHarnessReady(submodule)) return submodule
   if (isHarnessReady(sibling)) return sibling
   if (hasHarnessEntry(submodule)) return submodule
-  const packaged = join(process.resourcesPath, 'harness')
-  if (existsSync(packaged)) return packaged
   return undefined
 }

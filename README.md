@@ -43,7 +43,7 @@ DeepSeek Harness 已经是一个强大的、可组合的 Agent runtime：模型�
 - “发送选区”在 native channel 可用时写入结构化 Session context；iframe/剪贴板仍是明确 fallback。
 - Changes 面板仍是仓库级 Git diff；native `change-projection` 目前只显示 changed paths。
 - `defaultModel`、`defaultPreset` 和 `sandboxMode` 的桌面设置不能自动等同于 Host effective settings。
-- 打包配置目前不包含完整 Harness/Node 闭包；packaged Host 会在 runtime manifest 不完整时 fail closed，不会静默回退到系统 Node/npx。
+- 打包配置现在有 target-specific Harness/Node/pnpm/rg closure staging 入口；最终 app resources、安装后启动、签名/公证和跨平台证据仍未完成。runtime manifest 不完整时 packaged Host 会 fail closed，不会静默回退到系统 Node/npx。
 - 外层仓库当前没有完整 unit/E2E 测试套件；`pnpm test:contract` 覆盖 capability、IPC/preload、Host IPC/Session fixture 和上游 Desktop 静态兼容门，`typecheck` 和 `build` 不等于真实 provider/model 验证。
 
 完整、绑定版本的支持矩阵见 [docs/support-matrix.md](docs/support-matrix.md)。
@@ -169,9 +169,12 @@ pnpm build
 git diff --check
 ```
 
-发行前额外运行（当前源码预览预期会因 runtime 尚未 bundled 而失败）：
+发行前额外运行 runtime staging、closure smoke 和 fail-closed gate（签名、公证及跨平台安装证据仍未完成）：
 
 ```sh
+pnpm runtime:prepare
+pnpm smoke:runtime-closure
+pnpm smoke:packaged-host
 pnpm release:check
 ```
 

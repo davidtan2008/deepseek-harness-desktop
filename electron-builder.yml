@@ -19,6 +19,8 @@ extraResources:
     to: workbench
   - from: scripts/pty-bridge.py
     to: pty-bridge.py
+  - from: runtime-closure
+    to: runtime
 mac:
   category: public.app-category.developer-tools
   target:

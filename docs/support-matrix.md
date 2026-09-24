@@ -13,10 +13,10 @@
 | 上游 Desktop build spike | 部分验证 | macOS arm64 build、启动 ready、graceful quit、`pnpm upstream:check`、`smoke:upstream-host` 和 `smoke:native-turn`（真实 Harness loop + mock provider）通过；外部 provider、跨平台行为仍未验证 |
 | 外部 Host 复用 | 已实现未自动化 | `DHD_HARNESS_URL` 解析后不由桌面终止；workspace sync 需要 token |
 | Workspace/session sync | 已验证（macOS arm64） | `pnpm smoke:workspace` 通过真实 Host RPC 验证 `workspace/create` 幂等、session 创建/复用和无残留退出；DHD Renderer 注入仍依赖 iframe 私有 storage seam |
-| Runtime manifest | 已验证 | `pnpm runtime:manifest` / `packaged` 生成，包含 DHD build-output digest；`doctor:env` 和 `app.capabilities.runtime` 可读取 |
-| Packaged runtime preflight | 已验证 | macOS arm64 packaged app 在 `bundled.* = false` 时保持启动但拒绝启动外部 Host，无新增 `dsh web` 进程 |
-| 打包脚本 | 已验证（macOS arm64）/未发行 | electron-builder unpacked、zip、DMG 已验证；未配置 notarization，Windows/Linux 未验证 |
-| 完整 runtime 捆绑 | 计划中 | 当前 `electron-builder.yml` 不携带完整 Harness/Node 闭包；packaged Host 对不完整 manifest fail closed |
+| Runtime manifest | 已验证 | schema v3；`pnpm runtime:manifest` / `packaged` 生成，包含 DHD build-output digest 和 target closure inventory；`doctor:env` 和 `app.capabilities.runtime` 摘要可读取 |
+| Packaged runtime preflight | 已实现未发行验证 | closure Host smoke 已通过真实 bundled `dsh web` ready/关闭；实际 app resources 的 post-pack 校验、签名和安装后流程仍待完成 |
+| 打包脚本 | 已验证（macOS arm64）/未发行 | 旧 electron-builder unpacked、zip、DMG 流程已验证；closure-inclusive resources 尚待本轮实际 pack smoke；未配置 notarization，Windows/Linux 未验证 |
+| 完整 runtime 捆绑 | 已实现未发行验证 | `scripts/prepare-runtime-closure.mjs` 已生成 dsh first-party peers/vendor、Node、pnpm、目标平台 rg 的逐文件 inventory；签名、公证、安装后 smoke 和跨平台仍未完成 |
 | Linux 安装包 | 计划中 | 可构建配置存在，但未纳入本版本的质量/发行承诺 |
 
 ## 2. Workbench 能力
@@ -44,7 +44,7 @@
 | 工作区 → Harness workspace | 已验证（macOS arm64） | `pnpm smoke:workspace` 调用 `/api/workspace/create`，验证幂等、session 创建/复用和无残留退出；Renderer 注入仍依赖 iframe storage seam |
 | Agent Transport contract | contract 已定义 | `AgentTransportDescriptor`/`AgentTransportDriver`、`Turn Controller` 和 Main-owned runtime 已进入 shared/IPC contract；当前 iframe 仍明确标记为兼容 surface |
 | Turn Controller 状态机 | contract 已验证 | `pnpm test:contract` 覆盖 start/running/approval/cancel/resume/complete/dispose 事件顺序；`AgentRuntime` 已接入 Main IPC |
-| Change Projection 纯函数 | contract 已验证 | 覆盖 Agent/user/formatter、冲突、revert、排序和路径安全；尚未接入 watcher/Session/UI |
+| Change Projection 纯函数 | contract 已验证 | 覆盖 Agent/user/formatter、冲突、revert、排序和路径安全；Session `workspace/changes` producer 和 ChangesPanel changed-path projection 已接入，watcher/conflict/per-hunk 仍待接入 |
 | 选区发送 | 已实现未自动化 | `buildContextBundle` 生成 bounded structured selection payload；native AgentRuntime 将其写入 Session user message，剪贴板/iframe 仍作为 fallback |
 | Turn 原生投影 | 部分验证 | `AgentRuntime` 接入 `session/prompt`/`session/follow`，tool/approval/change/terminal events 和 WebSocket reconnect 已通过本地 fixture；`smoke:native-turn` 用真实 Harness loop + mock provider 验证 prompt/context/Session log，外部 provider、跨平台 reconnect 和完整 review 仍待验证 |
 | Agent diff attribution | 部分验证 | `workspace/changes` changed paths 已投影，ChangesPanel 可按 turn 加载当前 Git diff；`agent.review` 可读取 Host 前后 diff，watcher 冲突和 per-hunk Review UI 仍待接入 |

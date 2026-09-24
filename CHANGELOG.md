@@ -9,7 +9,8 @@
 
 ### Added
 
-- **R1 runtime manifest 基础**：新增 `RuntimeManifest` schema、source/packaged 生成命令、doctor 校验、`app.capabilities.runtime` 集成和 `electron-builder` 资源声明；manifest schema 升至 v2，并记录 DHD build-output 的排序 digest inventory；完整 Harness/Node/pnpm/ripgrep 尚未 bundled。
+- **R1 runtime closure staging**：新增 `pnpm runtime:prepare`，在目标平台生成 dsh production deploy、Harness first-party/vendor peer packages、固定 Node/pnpm/ripgrep 和逐文件 SHA-256 inventory；`smoke:runtime-closure` 与真实 bundled `dsh web` Host smoke 已通过。schema v3 的 packaged manifest、Host/search/test resolver 与 fail-closed preflight 已接入，packaged resources、签名和跨平台发行证据仍待完成。`app.capabilities.runtime` 只发送 closure 摘要，不通过 IPC 发送完整文件清单。
+- **R1 runtime manifest 基础**：新增 `RuntimeManifest` schema、source/packaged 生成命令、doctor 校验、`app.capabilities.runtime` 集成和 `electron-builder` 资源声明；早期 v2 的 DHD build-output digest inventory 仍由 v3 manifest 保留。
 - **上游 Desktop 兼容门**：新增 `pnpm upstream:check`，在 contract 测试中固定检查 Host IPC protocol、generation cleanup、runtime hash、Profile recovery 和 `runProfile` seam 的存在性。
 - **上游 Desktop 启动/退出 spike**：在 macOS arm64 补齐 Harness workspace 依赖后观察到 Electron 和 `dsh web` authenticated ready URL；通过 macOS app quit 验证 graceful shutdown、exit 0 和无残留 Host。启动期间有 bounded HTTP 503 inventory warning。
 - **Agent Transport contract**：新增 `AgentTransportDescriptor`/`AgentTransportDriver`、纯 `AgentTurnController` 和 R2 ADR 0005；Desktop capability contract 升至 v2，当前 iframe transport 明确声明 turn/cancel/resume/projection 尚未实现，选区仅支持 clipboard fallback。

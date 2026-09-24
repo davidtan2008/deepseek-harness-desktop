@@ -1,11 +1,30 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import type { ProjectTestResult } from '@dhd/shared'
 
 const OUTPUT_LIMIT = 256 * 1024
 const TEST_TIMEOUT_MS = 120_000
 const active = new Map<number, ChildProcess>()
+const electronProcess = process as NodeJS.Process & { resourcesPath?: string }
+
+function isPackaged(): boolean {
+  return typeof electronProcess.resourcesPath === 'string' && electronProcess.resourcesPath.length > 0
+}
+
+function packagedRuntimePath(...parts: string[]): string {
+  if (!isPackaged()) throw new Error('packaged runtime path requested outside Electron')
+  return join(electronProcess.resourcesPath as string, 'runtime', ...parts)
+}
+
+function testEnvironment(): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = { ...process.env, CI: '1' }
+  if (isPackaged()) {
+    const bundledBin = packagedRuntimePath('bin')
+    environment.PATH = `${bundledBin}${delimiter}${environment.PATH ?? ''}`
+  }
+  return environment
+}
 
 function which(command: string): string | undefined {
   const path = process.env.PATH ?? ''
@@ -35,6 +54,13 @@ function signal(child: ChildProcess, signalName: NodeJS.Signals): void {
 }
 
 function packageCommand(): { command: string; args: string[]; label: 'pnpm' | 'npm' } {
+  if (isPackaged()) {
+    return {
+      command: packagedRuntimePath('bin', process.platform === 'win32' ? 'node.exe' : 'node'),
+      args: [packagedRuntimePath('pnpm', 'bin', 'pnpm.mjs'), '--pm-on-fail=ignore', 'test'],
+      label: 'pnpm',
+    }
+  }
   const pnpm = which('pnpm')
   if (pnpm !== undefined) return { command: pnpm, args: ['test'], label: 'pnpm' }
   const npm = which('npm')
@@ -49,7 +75,7 @@ export function runProjectTests(cwd: string, owner: number): Promise<ProjectTest
   const selected = packageCommand()
   const child = spawn(selected.command, selected.args, {
     cwd,
-    env: { ...process.env, CI: '1' },
+    env: testEnvironment(),
     detached: process.platform !== 'win32',
     stdio: ['ignore', 'pipe', 'pipe'],
   })

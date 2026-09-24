@@ -13,7 +13,7 @@
 5. [`docs/roadmap.md`](roadmap.md)：目标架构与阶段退出条件。
 6. [`packages/shared/src/protocol.ts`](../packages/shared/src/protocol.ts)：跨进程数据与通道真源。
 7. [`packages/shared/src/runtime.ts`](../packages/shared/src/runtime.ts) 和 [`docs/runtime-manifest.md`](runtime-manifest.md)：当前 runtime 和 bundled 依赖的身份契约。
-8. [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts)、[`apps/shell/src/agent/harness-web-session-port.ts`](../apps/shell/src/agent/harness-web-session-port.ts) 和 [`packages/shared/src/change-projection.ts`](../packages/shared/src/change-projection.ts)：Agent transport、真实 Session channel、turn 和变更投影 contract。
+8. [`packages/shared/src/agent-transport.ts`](../packages/shared/src/agent-transport.ts)、[`apps/shell/src/agent/harness-web-session-port.ts`](../apps/shell/src/agent/harness-web-session-port.ts)、[`scripts/prepare-runtime-closure.mjs`](../scripts/prepare-runtime-closure.mjs) 和 [`packages/shared/src/change-projection.ts`](../packages/shared/src/change-projection.ts)：Agent transport、真实 Session channel、packaged runtime closure、turn 和变更投影 contract。
 9. 受影响目录的源码和测试；不要从 `harness/` 子模块内部开始改桌面代码。
 
 ## 2. Source-of-truth 优先级
@@ -97,6 +97,9 @@ pnpm dev
 pnpm smoke:workspace
 pnpm smoke:upstream-host
 pnpm smoke:native-turn
+pnpm runtime:prepare
+pnpm smoke:runtime-closure
+pnpm smoke:packaged-host
 pnpm typecheck
 pnpm test:contract
 pnpm build
@@ -114,7 +117,7 @@ git diff --check
 | Host/PTY/退出 | `pnpm typecheck`、`pnpm build` | 真实启动、取消、重启、Dock/窗口退出和残留进程检查 |
 | 搜索/watcher | `pnpm typecheck`、`pnpm build` | 真实大仓库、rg 失败 fallback、取消和 fd 检查 |
 | UI 状态 | `pnpm typecheck`、`pnpm build` | 实际窗口中的打开、保存、切换、失败态 |
-| 打包配置 | `pnpm build` | 目标原生安装包 smoke；开发构建不能代替它 |
+| 打包配置 | `pnpm runtime:prepare`、`pnpm build` | `pnpm smoke:runtime-closure`、`pnpm smoke:packaged-host`、`pnpm check:packaged-runtime`、目标原生安装包 smoke；开发构建不能代替它 |
 | Harness pin | 先在 `harness/` 构建 | `pnpm smoke:workspace` 验证 workspace/session idempotency，`pnpm smoke:native-turn` 验证真实 Harness loop + mock provider 的 native turn；再记录 Host 启动、session resume 和版本 |
 
 ## 6. 修改工作流

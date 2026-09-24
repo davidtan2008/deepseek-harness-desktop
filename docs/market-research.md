@@ -110,7 +110,7 @@ Harness 的模型适配器、工具、技能、会话、沙箱、存储、循环
 - Jobs、Problems 和原生 Team roster/projector 仍是占位或只存在于 Harness iframe。
 - 多个窗口共享一个 Host、全局设置和一个项目 watcher；还没有每窗口 Agent/project 隔离。
 - `defaultPreset`、`defaultModel`、`sandboxMode` 当前是桌面本地设置，尚未全部转换为 Host 的 effective settings。
-- 打包配置目前不包含完整 Harness/Node 闭包；没有签名、公证和已安装包 smoke 流程前不能称为自包含发行版。
+- 在本审计快照中，打包配置不包含完整 Harness/Node 闭包；当前仓库已增加 target-specific closure staging，但签名、公证和已安装包 smoke 流程完成前仍不能称为自包含发行版。
 - 外层仓库没有完整 unit/E2E 测试套件；当前新增的 `test:contract` 只覆盖 capability 与 IPC/preload contract，CI 仍主要验证安装、类型检查和构建。
 
 这些事实记录在 [support-matrix.md](support-matrix.md) 和 [architecture.md](architecture.md)，避免 README、路线图和实际代码继续漂移。

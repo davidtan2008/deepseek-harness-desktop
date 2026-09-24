@@ -1,3 +1,4 @@
+import { app } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { accessSync, constants, statSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
@@ -5,6 +6,7 @@ import { homedir } from 'node:os'
 import { join, relative } from 'node:path'
 import { createInterface } from 'node:readline'
 import { IGNORED_DIR_NAMES, type FileSearchHit } from '@dhd/shared'
+import { packagedRipgrepPath } from './paths.ts'
 
 export interface SearchCallbacks {
   /** Periodic live hit count while the search is running. */
@@ -35,6 +37,10 @@ function isExecutable(path: string): boolean {
  */
 function resolveRg(): string | undefined {
   if (rgProbe !== null) return rgProbe
+  if (app.isPackaged) {
+    rgProbe = isExecutable(packagedRipgrepPath()) ? packagedRipgrepPath() : undefined
+    return rgProbe
+  }
   const exe = process.platform === 'win32' ? 'rg.exe' : 'rg'
   const candidates = [
     process.env.RIPGREP_PATH,

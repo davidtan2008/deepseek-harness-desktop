@@ -36,7 +36,7 @@
 - `packages/shared`: `protocol.ts`, `api.ts`, and versioned `capabilities.ts` are the cross-process contract source.
 - `harness/`: pinned upstream gitlink; do not edit it in desktop feature branches.
 
-The default full Agent surface remains a tokenized Harness Web UI iframe. After workspace sync, a Main-owned native runtime uses authenticated Host Remote APIs to send bounded context/turns and project Session tool/approval/change events; these are versioned DHD contracts, while the Host routes remain pin-specific. The current Changes panel is still repository-level Git diff, not per-turn before/after review. The runtime manifest records a DHD build-output digest but the current package does not bundle a complete Harness/Node runtime and has no signed release evidence.
+The default full Agent surface remains a tokenized Harness Web UI iframe. After workspace sync, a Main-owned native runtime uses authenticated Host Remote APIs to send bounded context/turns and project Session tool/approval/change events; these are versioned DHD contracts, while the Host routes remain pin-specific. The current Changes panel is still repository-level Git diff, not per-turn before/after review. A target-specific runtime closure staging command exists, but final packaged-resource verification, signing and release evidence remain pending.
 
 ## Commands
 

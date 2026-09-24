@@ -30,6 +30,7 @@ When sources disagree, fix the stale source or document the discrepancy. Do not 
 - `apps/shell/src/agent/harness-web-session-port.ts`
 - `apps/shell/src/agent-runtime.ts`
 - `apps/shell/src/test-service.ts`
+- `scripts/prepare-runtime-closure.mjs`
 - `docs/runtime-manifest.md`
 - the affected source and nearest tests
 

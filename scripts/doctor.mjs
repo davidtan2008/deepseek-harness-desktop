@@ -70,7 +70,7 @@ if (existsSync(manifestPath)) {
       && inventory.fileCount >= 0
       && (inventory.digest === null || typeof inventory.digest === 'string')
       && (inventory.complete ? inventory.fileCount > 0 && inventory.digest !== null : inventory.digest === null)
-    const valid = manifest.schemaVersion === 2
+    const valid = manifest.schemaVersion === 3
       && (manifest.mode === 'source' || manifest.mode === 'packaged')
       && typeof manifest.harness?.commit === 'string'
       && inventoryValid
@@ -82,6 +82,8 @@ if (existsSync(manifestPath)) {
 } else {
   console.log('ℹ runtime manifest: 未生成（运行 pnpm runtime:manifest）')
 }
+const closurePath = join(root, 'apps/shell/runtime-closure/closure.json')
+console.log(`${existsSync(closurePath) ? '✓' : 'ℹ'} packaged runtime closure: ${existsSync(closurePath) ? closurePath : '未生成（运行 pnpm runtime:prepare）'}`)
 
 const rg = process.env.RIPGREP_PATH || command('rg', ['--version'])?.split('\n')[0] || '未找到（搜索会使用 JS fallback）'
 report('ripgrep', rg, true)

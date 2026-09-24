@@ -1,6 +1,6 @@
 import { AGENT_TRANSPORT_CONTRACT_VERSION, type AgentTransportDescriptor, type AgentTransportStatus } from './agent-transport.js'
 import type { HostState } from './protocol.js'
-import type { RuntimeManifest } from './runtime.js'
+import type { RuntimeManifest, RuntimeManifestSummary } from './runtime.js'
 
 export const DESKTOP_CONTRACT_VERSION = 2 as const
 
@@ -28,7 +28,7 @@ export interface CapabilityDescriptor {
 export interface DesktopCapabilities {
   contractVersion: typeof DESKTOP_CONTRACT_VERSION
   appVersion: string
-  runtime: RuntimeManifest | null
+  runtime: RuntimeManifestSummary | null
   surface: AgentSurface
   agentTransport: AgentTransportDescriptor
   host: {
@@ -71,6 +71,15 @@ function currentTransport(input: {
   }
 }
 
+function runtimeSummary(runtime: RuntimeManifest): RuntimeManifestSummary {
+  if (runtime.closure === null) return { ...runtime, closure: null }
+  const { files, ...closure } = runtime.closure
+  return {
+    ...runtime,
+    closure: { ...closure, fileCount: files.length },
+  }
+}
+
 export function createDesktopCapabilities(input: {
   appVersion: string
   host: HostState
@@ -82,7 +91,7 @@ export function createDesktopCapabilities(input: {
   return {
     contractVersion: DESKTOP_CONTRACT_VERSION,
     appVersion: input.appVersion,
-    runtime: input.runtime ?? null,
+    runtime: input.runtime === null || input.runtime === undefined ? null : runtimeSummary(input.runtime),
     surface: input.externalHost ? 'external-loopback' : 'managed-iframe',
     agentTransport: currentTransport(input),
     host: {

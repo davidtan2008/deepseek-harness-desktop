@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import { isRuntimeManifest, type RuntimeManifest } from '@dhd/shared'
 import { shellRoot } from './paths.ts'
 
@@ -12,7 +12,10 @@ function record(value: unknown): Record<string, unknown> | undefined {
 function harnessIdentity(root: string): { commit: string | null; version: string | null } {
   let commit: string | null = null
   try {
-    commit = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    const topLevel = execFileSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
+    if (resolve(realpathSync(topLevel)) === resolve(realpathSync(root))) {
+      commit = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+    }
   } catch {
     // A packaged runtime may not contain a .git directory; version is then authoritative.
   }
@@ -23,6 +26,41 @@ function harnessIdentity(root: string): { commit: string | null; version: string
   } catch {
     return { commit, version: null }
   }
+}
+
+function runtimeResource(relativePath: string): string {
+  if (relativePath.length === 0 || relativePath.startsWith('/') || relativePath.includes('\\') || relativePath.split('/').some((part) => part === '' || part === '.' || part === '..')) {
+    throw new Error(`invalid packaged runtime path: ${relativePath}`)
+  }
+  return join(process.resourcesPath, 'runtime', ...relativePath.split('/'))
+}
+
+export function packagedRuntimeMismatch(manifest: RuntimeManifest): string | undefined {
+  if (!app.isPackaged || manifest.mode !== 'packaged') return undefined
+  const closure = manifest.closure
+  if (closure === null) return 'Packaged runtime closure descriptor is missing'
+  if (closure.platform !== process.platform || closure.arch !== process.arch) {
+    return `Packaged runtime target ${closure.platform}-${closure.arch} does not match ${process.platform}-${process.arch}`
+  }
+  try {
+    const paths = [closure.harness.entry, closure.harness.packageJson, closure.node.path, closure.pnpm.path, closure.ripgrep.path]
+    for (const path of paths) {
+      const absolute = runtimeResource(path)
+      if (!existsSync(absolute)) return `Packaged runtime file is missing: ${path}`
+    }
+    const harnessPackage: unknown = JSON.parse(readFileSync(runtimeResource(closure.harness.packageJson), 'utf8'))
+    const packageRecord = record(harnessPackage)
+    if (packageRecord?.version !== closure.harness.version) return 'Packaged Harness version does not match the runtime descriptor'
+    const nodeVersion = execFileSync(runtimeResource(closure.node.path), ['-p', 'process.versions.node'], { encoding: 'utf8' }).trim()
+    if (nodeVersion !== closure.node.version) return `Packaged Node version mismatch: ${nodeVersion}`
+    const pnpmVersion = execFileSync(runtimeResource(closure.node.path), [runtimeResource(closure.pnpm.path), '--pm-on-fail=ignore', '--version'], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0]
+    if (pnpmVersion !== closure.pnpm.version) return `Packaged pnpm version mismatch: ${pnpmVersion}`
+    const ripgrepVersion = execFileSync(runtimeResource(closure.ripgrep.path), ['--version'], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0]
+    if (ripgrepVersion !== closure.ripgrep.version) return `Packaged ripgrep version mismatch: ${ripgrepVersion}`
+  } catch (error) {
+    return `Packaged runtime validation failed: ${error instanceof Error ? error.message : String(error)}`
+  }
+  return undefined
 }
 
 export function harnessRuntimeMismatch(manifest: RuntimeManifest, root: string): string | undefined {

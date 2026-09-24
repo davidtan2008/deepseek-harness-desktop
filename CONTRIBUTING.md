@@ -45,6 +45,7 @@ pnpm test:contract   # capability manifest + IPC/preload + upstream contract che
 pnpm smoke:workspace # 真实 Host workspace/session idempotency（macOS arm64）
 pnpm smoke:upstream-host # 真实 upstream Host IPC lifecycle + Session follow（需 Harness Desktop build）
 pnpm smoke:native-turn   # 真实 Harness loop + mock provider 的 native turn/Session log smoke
+pnpm runtime:prepare  # 生成当前 target 的 Harness/Node/pnpm/rg closure（不提交）
 pnpm build           # shared -> workbench -> shell
 pnpm pack            # 当前平台 electron-builder
 pnpm pack:mac

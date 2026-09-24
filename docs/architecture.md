@@ -143,7 +143,7 @@ preload 不再暴露 `invoke(channel, ...args)`。Renderer 不能绕过 API 对�
 
 ### 4.3 Runtime manifest
 
-`packages/shared/src/runtime.ts` 定义 `RuntimeManifest` schema 和 DHD build-output digest inventory。`apps/shell/src/runtime-manifest.ts` 从源码目录或 packaged resources 读取并校验它；有效 manifest 随 `app.capabilities` 发送给 Renderer，损坏/缺失时返回 `runtime: null` 并保留诊断。`runtime-manifest.json` 是构建产物，不提交到 Git；字段和发行规则见 [`runtime-manifest.md`](runtime-manifest.md)。
+`packages/shared/src/runtime.ts` 定义 `RuntimeManifest` schema、packaged closure inventory 和 DHD build-output digest inventory。`apps/shell/src/runtime-manifest.ts` 从源码目录或 packaged resources 读取并校验它；Main 保留完整 manifest/closure，`app.capabilities` 只向 Renderer 发送不含逐文件清单的摘要，损坏/缺失时返回 `runtime: null` 并保留诊断。`runtime-manifest.json` 是构建产物，不提交到 Git；字段和发行规则见 [`runtime-manifest.md`](runtime-manifest.md)。
 
 ### 4.4 当前 IPC 分类
 
@@ -191,8 +191,8 @@ ready → stopped（重启/退出）
 ```
 
 - `DHD_HARNESS_URL` 合法：采用 loopback URL，标记为 external，桌面不拥有其进程；非 loopback 只有显式 `DHD_ALLOW_REMOTE_HOST=1` 才会被接受。
-- Packaged build 读取 `runtime-manifest.json`；manifest 缺失、不是 packaged 模式或未声明 bundled Harness/Node 时 fail closed。`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 只用于本地诊断。
-- 否则：探测 Harness root，使用本机 Node 启动 `dsh web`。
+- Packaged build 读取 `runtime-manifest.json` 和 `Resources/runtime/closure.json`；manifest 缺失、不是 packaged 模式、目标不匹配或未声明完整 Harness/Node/pnpm/ripgrep closure 时 fail closed。`DHD_ALLOW_UNBUNDLED_RUNTIME=1` 只用于本地诊断。
+- Source mode 探测 Harness root，使用 checkout Node/`tsx` 启动 `dsh web`；packaged mode 只使用 closure 内的 Node、dsh built entry 和 desktop profile，不解析系统 `npx`/Node。
 - ready 只由 stdout 的 `dsh web: <url>` 解析确认；启动超时、进程提前退出和无效 URL 进入 error。
 - 自有 Host 退出先 TERM，2 秒后 KILL，并等待真实退出；外部 Host 不由桌面终止。
 
@@ -382,7 +382,7 @@ Projection 是只读派生视图；它不能悄悄覆盖用户 buffer。冲突�
 
 ## 12. 打包和上游兼容
 
-当前 `electron-builder.yml` 打包 shell、workbench、desktop profile、PTY bridge 和生成的 `runtime-manifest.json`，但没有完整 Harness/Node runtime。`pnpm build` 生成 source manifest；`pnpm pack:*` 在进入 electron-builder 前生成 packaged manifest。目标发布单元必须把以下内容绑定为一个版本：
+当前 `electron-builder.yml` 打包 shell、workbench、desktop profile、PTY bridge、生成的 `runtime-manifest.json` 和 `runtime:prepare` 生成的 closure。`pnpm build` 生成 source manifest；`pnpm runtime:prepare` 生成 target-specific closure；`pnpm pack:*` 在进入 electron-builder 前准备 closure 并生成 packaged manifest。目标发布单元必须把以下内容绑定为一个版本：
 
 ```text
 Desktop shell
