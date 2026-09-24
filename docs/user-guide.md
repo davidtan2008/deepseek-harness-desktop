@@ -57,11 +57,11 @@ pnpm dev
 
 **行内编辑（Cmd/Ctrl+K）**：选中代码 → 输入指令（如“加错误处理”）→ DeepSeek 返回替换文本，确认后写回编辑器。需先配置 API Key。
 
-**集成终端**：真实 PTY（node-pty），支持系统默认 shell；环境异常时自动回退管道模式。
+**集成终端**：真实 PTY（node-pty），支持系统默认 shell；环境异常时自动回退（python 桥 → macOS `script` → 管道 shell）。**终端会话常驻**：切换底部 Tab（终端 / 变更 / 问题 / 输出）不会结束 shell——回到终端 Tab 时自动重连并回放离开期间的输出（最多 256KB）；切换项目或关闭窗口才会结束会话。zsh 等登录 shell 加载 dotfiles 需要约 1 秒，首次提示符稍有延迟属正常现象。
 
 **源代码管理**：状态、diff、暂存/取消暂存、提交、推送、拉取、分支切换。
 
-**搜索**：文件名快开 + 全局内容搜索（ripgrep 加速，无 rg 时回退文件系统遍历；自动忽略 node_modules/.git/dist 等）。
+**搜索**：文件名快开 + 全局内容搜索。内容搜索走 `rg --json` 流式解析，文件名枚举走 `rg --files`，均自动忽略 node_modules/.git/dist 等目录并尊重 .gitignore；未安装 ripgrep 时回退 JS 文件系统遍历（慢 2~3 个数量级，建议 `brew install ripgrep`）。搜索过程显示实时命中数（250ms 节流），内容结果先渲染、文件名结果随后补充，可随时停止并保留已命中的部分结果。
 
 **MCP**：设置 → MCP 面板添加 server（stdio 或 streamable-http），保存至 `~/.dsh/desktop-mcp.patch.yml`，重启 Host 后生效。
 
@@ -109,4 +109,24 @@ export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
 pnpm install
 ```
 
+**搜索很慢 / 搜不到内容**
+
+- 先确认 ripgrep 已安装：终端执行 `rg --version`。未安装时 `brew install ripgrep`（内容搜索从秒级降到毫秒级）。
+- 主进程只在启动时探测一次 rg；安装 rg 后需重启应用。
+- GUI 启动的应用 PATH 与终端不同，主进程会额外探测 `/opt/homebrew/bin`、`/usr/local/bin` 等常见位置，brew 安装无需额外配置；自定义位置可用环境变量 `RIPGREP_PATH` 指定。
+- 注意：搜索遵循 .gitignore，被忽略的文件（build 产物、依赖目录等）不在结果中。
+
+**终端行为异常**
+
+- "[process exited 0]" 反复出现且 shell 无法交互：多为旧版本已知问题（切 Tab 即杀会话），升级到 ≥ 此修复版本后终端会话常驻，切 Tab 不再结束 shell。
+- 终端启动慢：zsh/bash 登录 shell 需加载 dotfiles（nvm/conda 等初始化重时约 1 秒），属正常。
+- 原生 PTY 不可用（如 spawn-helper 权限异常）时自动回退 python 桥 / `script` / 管道 shell，管道模式下无颜色与交互能力，可查看 输出 面板的日志确认当前后端。
+
 **重置应用**：删除 `userData` 目录（macOS：`~/Library/Application Support/deepseek-harness-desktop`）与 `~/.dsh/`（会丢会话历史，慎操作）。
+
+## 8. 已知问题与排查记录
+
+以下问题已在当前版本修复，记录根因供后续排查同类问题参考（详细调查过程见 [docs/project-overview.md](project-overview.md)）：
+
+1. **终端切 Tab 后报 "[process exited 0]"（已修复）**：根因是旧设计"终端面板卸载即杀会话"与 React StrictMode 双挂载叠加——kill 必然落在 shell 启动窗口内（zsh 首个提示符需 0.8~1.4s，kill 在 spawn 后几毫秒内即发生），此时被杀的 shell 恰好以 exitCode 0 退出，呈现为"[process exited 0]"。现改为会话常驻 + 重连回放模型（`pty.acquire`），切 Tab 不再影响会话。
+2. **安装 ripgrep 后搜索显示无结果（已修复）**：内容命中实际 250ms 内已就绪，但文件名枚举存在 O(n²) 性能缺陷（全量结果逐行重过滤，万级文件仓库需 ~50s），而面板等两路结果齐了才渲染，导致"永远搜不到"。现文件名枚举改为增量计数（50ms），内容结果独立先行渲染。

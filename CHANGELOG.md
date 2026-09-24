@@ -11,6 +11,8 @@
 
 - **终端无法启动（pty.create 报 spawn EBADF）**：`tryNodePty` 仍按旧版布局检查 `build/Release/spawn-helper`，而 node-pty ≥ 1.1 改用 `prebuilds/<platform>-<arch>/`，导致原生 PTY 后端被永久跳过、落入管道回退链。现同时探测两种布局，并在首次使用时为缺失执行位的 `spawn-helper` 恢复 0755（pnpm 安装的预构建产物为 0644，posix_spawnp 会以 EACCES 拒绝）。管道回退链同步加固：python 桥在第 4 个 fd 触发 EBADF 时自动降级为三管道（仅失去 resize），macOS 增加 `script -q /dev/null` 真 PTY 回退层；修正 Windows 下 PATH 拼接误用 `:` 的分隔符 bug。
 - **搜索缓慢且无进度**：`execFile('rg')` 在 GUI 启动（PATH 不含 rg）时静默 ENOENT，始终退化为慢速 JS 遍历。现一次性探测 `RIPGREP_PATH`、常见安装位置与 PATH（未安装 ripgrep 时可 `brew install ripgrep` 提速两个数量级）；内容搜索改为 `rg --json` 流式解析，命中上限即终止子进程；`listFiles` 优先 `rg --files`。新增 `search:progress` 事件（250ms 节流）与 `search.cancel` 通道；搜索框 300ms 防抖自动搜索，显示实时命中数并可随时停止；取消后返回已命中的部分结果。
+- **安装 ripgrep 后搜索仍显示无结果**：`listFiles` 的早停回调对每一行都对全量累计结果重跑 `relative()` + 过滤（O(n²)，本仓库 9639 文件 ≈ 4600 万次运算，实测 49.7s），而搜索面板等文件名与内容两路结果全部就绪才渲染——内容命中其实 250ms 内已就绪却永远显示不出来。现改为逐行增量计数（同仓库实测 50ms），内容结果独立先行渲染，文件名结果随后补充。
+- **切换底部 Tab 后终端报 "[process exited 0]" 且会话丢失**：旧实现中终端面板随 Tab 切换被卸载即 `pty.kill`，配合 React StrictMode 的双挂载语义，kill 几乎必然落在 shell 启动窗口内（实证：zsh 登录 shell 首个提示符需 0.8~1.4s，而 kill 发生在 spawn 后数毫秒——此时被杀恰报 exitCode 0）。重构为 VS Code 式会话常驻模型：会话由主进程按 (窗口, 项目) 持有，切 Tab 只是分离渲染层，回到终端 Tab 时 `pty.acquire` 幂等重连并回放缓冲（上限 256KB）；StrictMode 并发 acquire 合并为一次 spawn；切换项目才杀旧会话；窗口销毁/退出时统一回收。
 
 ### Added
 

@@ -5,7 +5,7 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { PtyCreateOptions } from '@dhd/shared'
+import type { PtyAcquireResult, PtyOptions } from '@dhd/shared'
 
 interface PtyHandle {
   write: (data: string) => void
@@ -253,42 +253,93 @@ async function spawnFallback(
 
 interface Session {
   id: string
+  /** webContents.id of the window that owns this terminal. */
+  owner: number
+  /** Requested cwd; sessions are matched per (owner, cwdKey). */
+  cwdKey: string
+  /** Raw output replay buffer, capped, so a reattached panel can catch up. */
+  replay: string
   write: (data: string) => void
   resize: (cols: number, rows: number) => void
   kill: () => void
 }
 
 const sessions = new Map<string, Session>()
+const pendingAcquires = new Map<string, Promise<PtyAcquireResult>>()
+const REPLAY_CAP = 256 * 1024
 
-export async function createPty(
-  options: PtyCreateOptions,
+function findSession(owner: number, cwdKey: string): Session | undefined {
+  for (const session of sessions.values()) {
+    if (session.owner === owner && session.cwdKey === cwdKey) return session
+  }
+  return undefined
+}
+
+/**
+ * Acquire the terminal for (window, project). Sessions outlive panel/tab
+ * switches: an existing live session is returned together with its buffered
+ * output instead of being respawned. Concurrent acquires (React StrictMode
+ * double-mount) share one spawn. Acquiring a different project kills this
+ * window's previous session (single-terminal model).
+ */
+export async function acquirePty(
+  options: PtyOptions,
+  owner: number,
   onData: (id: string, data: string) => void,
   onExit: (id: string, exitCode: number) => void,
-): Promise<string> {
-  const id = randomUUID()
-  const shell = resolveShell()
-  const cwd = (options.cwd && existsSync(options.cwd) ? options.cwd : homedir()) || process.cwd()
-  const env = shellEnv()
-  const cols = Math.max(options.cols || 0, 80)
-  const rows = Math.max(options.rows || 0, 24)
+): Promise<PtyAcquireResult> {
+  const cwdKey = options.cwd ?? ''
+  const key = `${owner}::${cwdKey}`
+  const inFlight = pendingAcquires.get(key)
+  if (inFlight) return inFlight
 
-  let proc = tryNodePty(shell, cwd, cols, rows, env)
-  if (!proc) {
-    proc = await spawnFallback(shell, cwd, env, cols, rows)
+  const promise = (async (): Promise<PtyAcquireResult> => {
+    for (const [id, session] of sessions) {
+      if (session.owner === owner && session.cwdKey !== cwdKey) killPty(id)
+    }
+    const existing = findSession(owner, cwdKey)
+    if (existing) return { id: existing.id, replay: existing.replay }
+
+    const id = randomUUID()
+    const shell = resolveShell()
+    const cwd = (options.cwd && existsSync(options.cwd) ? options.cwd : homedir()) || process.cwd()
+    const env = shellEnv()
+    const cols = Math.max(options.cols || 0, 80)
+    const rows = Math.max(options.rows || 0, 24)
+
+    let proc = tryNodePty(shell, cwd, cols, rows, env)
+    if (!proc) {
+      proc = await spawnFallback(shell, cwd, env, cols, rows)
+    }
+
+    const session: Session = {
+      id,
+      owner,
+      cwdKey,
+      replay: '',
+      write: (data) => proc.write(data),
+      resize: (c, r) => proc.resize(Math.max(c, 2), Math.max(r, 2)),
+      kill: () => proc.kill(),
+    }
+    proc.onData((data) => {
+      session.replay = session.replay + data
+      if (session.replay.length > REPLAY_CAP) session.replay = session.replay.slice(-REPLAY_CAP)
+      onData(id, data)
+    })
+    proc.onExit((e) => {
+      sessions.delete(id)
+      onExit(id, e.exitCode)
+    })
+    sessions.set(id, session)
+    return { id, replay: '' }
+  })()
+
+  pendingAcquires.set(key, promise)
+  try {
+    return await promise
+  } finally {
+    pendingAcquires.delete(key)
   }
-
-  proc.onData((data) => onData(id, data))
-  proc.onExit((e) => {
-    sessions.delete(id)
-    onExit(id, e.exitCode)
-  })
-  sessions.set(id, {
-    id,
-    write: (data) => proc.write(data),
-    resize: (c, r) => proc.resize(Math.max(c, 2), Math.max(r, 2)),
-    kill: () => proc.kill(),
-  })
-  return id
 }
 
 export function writePty(id: string, data: string): void {
@@ -302,6 +353,12 @@ export function resizePty(id: string, cols: number, rows: number): void {
 export function killPty(id: string): void {
   sessions.get(id)?.kill()
   sessions.delete(id)
+}
+
+export function killSessionsOfOwner(owner: number): void {
+  for (const [id, session] of sessions) {
+    if (session.owner === owner) killPty(id)
+  }
 }
 
 export function killAllPty(): void {

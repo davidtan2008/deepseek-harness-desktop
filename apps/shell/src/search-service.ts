@@ -57,16 +57,14 @@ export async function listFiles(root: string, query = '', limit = 200): Promise<
   const needle = query.trim().toLowerCase()
   const rg = resolveRg()
   if (rg) {
-    const args = ['--files', ...rgExcludes(), root]
-    const out = await collectLines(rg, args, (lines) => {
-      const filtered = needle
-        ? lines.filter((line) => relative(root, line).toLowerCase().includes(needle))
-        : lines
-      return filtered.length >= limit
+    const matches = (line: string): boolean =>
+      !needle || relative(root, line).toLowerCase().includes(needle)
+    let matched = 0
+    const out = await collectLines(rg, ['--files', ...rgExcludes(), root], (line) => {
+      if (matches(line)) matched += 1
+      return matched >= limit
     })
-    const hits = out
-      .filter((line) => !needle || relative(root, line).toLowerCase().includes(needle))
-      .slice(0, limit)
+    const hits = out.filter(matches).slice(0, limit)
     if (hits.length > 0 || out.length > 0) return hits
     // rg with no output may mean an empty project or unreadable root; fall through
   }
@@ -215,11 +213,14 @@ export function cancelSearch(requestId: string): void {
   running.delete(requestId)
 }
 
-/** Collect stdout lines until the child exits; `earlyExit` may stop collection early. */
+/**
+ * Collect stdout lines until the child exits; `shouldStop` receives each new
+ * line and may request an early kill by returning true (used for result caps).
+ */
 function collectLines(
   command: string,
   args: string[],
-  earlyExit?: (lines: string[]) => boolean,
+  shouldStop?: (line: string) => boolean,
 ): Promise<string[]> {
   return new Promise((resolve) => {
     const lines: string[] = []
@@ -233,7 +234,7 @@ function collectLines(
     const rl = createInterface({ input: child.stdout! })
     rl.on('line', (line) => {
       lines.push(line)
-      if (earlyExit?.(lines) === true) {
+      if (shouldStop?.(line) === true) {
         try { child.kill() } catch { /* already gone */ }
       }
     })

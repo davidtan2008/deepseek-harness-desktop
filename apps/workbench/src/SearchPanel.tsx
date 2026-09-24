@@ -38,14 +38,18 @@ export function SearchPanel() {
       if (event.requestId === id && event.phase === 'running') setProgress(event.count)
     })
     try {
-      const [content, names] = await Promise.all([
-        dhd().search.content(app.projectPath, text, id),
-        dhd().search.files(app.projectPath, text),
-      ])
-      if (requestId.current !== id) return
-      setHits(content)
-      setFiles(names)
-      setProgress(content.length)
+      // Content hits are the primary result: render them as soon as they land
+      // instead of waiting on the (potentially slower) file-name listing.
+      const contentPromise = dhd().search.content(app.projectPath, text, id).then((content) => {
+        if (requestId.current !== id) return
+        setHits(content)
+        setProgress(content.length)
+      })
+      const namesPromise = dhd().search.files(app.projectPath, text).then((names) => {
+        if (requestId.current !== id) return
+        setFiles(names)
+      })
+      await Promise.all([contentPromise, namesPromise])
     } catch (err) {
       console.error('search failed', err)
     } finally {

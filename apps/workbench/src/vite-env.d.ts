@@ -9,7 +9,8 @@ import type {
   InlineEditResult,
   IpcEventMap,
   McpServerConfig,
-  PtyCreateOptions,
+  PtyAcquireResult,
+  PtyOptions,
   RuleFile,
   WorkspaceSyncResult,
 } from '@dhd/shared'
@@ -66,7 +67,7 @@ export interface DesktopApi {
     log: (cwd: string) => Promise<GitCommit[]>
   }
   pty: {
-    create: (options: PtyCreateOptions) => Promise<string>
+    acquire: (options: PtyOptions) => Promise<PtyAcquireResult>
     write: (id: string, data: string) => Promise<void>
     resize: (id: string, cols: number, rows: number) => Promise<void>
     kill: (id: string) => Promise<void>

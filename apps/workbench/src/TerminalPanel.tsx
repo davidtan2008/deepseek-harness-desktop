@@ -15,7 +15,6 @@ export function TerminalPanel() {
     if (!el || !app.projectPath) return
     let cancelled = false
     let ptyId: string | undefined
-    const buffered = new Map<string, string[]>()
 
     const term = new Terminal({
       cursorBlink: true,
@@ -39,13 +38,7 @@ export function TerminalPanel() {
     ro.observe(el)
 
     const unsubData = dhd().on('pty:data', (payload) => {
-      if (ptyId === payload.id) {
-        term.write(payload.data)
-        return
-      }
-      const chunks = buffered.get(payload.id) ?? []
-      chunks.push(payload.data)
-      buffered.set(payload.id, chunks)
+      if (ptyId === payload.id) term.write(payload.data)
     })
     const unsubExit = dhd().on('pty:exit', (payload) => {
       if (ptyId === payload.id) {
@@ -58,18 +51,18 @@ export function TerminalPanel() {
 
     void (async () => {
       try {
-        const id = await dhd().pty.create({
+        // Sessions survive tab switches: this reattaches to the live shell
+        // (replaying what it printed while the panel was hidden) or starts
+        // one when none exists yet. StrictMode's double-mount acquires the
+        // same session twice; the cancelled effect must not kill it.
+        const { id, replay } = await dhd().pty.acquire({
           cwd: app.projectPath!,
           cols: Math.max(term.cols, 80),
           rows: Math.max(term.rows, 24),
         })
-        if (cancelled) {
-          void dhd().pty.kill(id)
-          return
-        }
+        if (cancelled) return
         ptyId = id
-        for (const chunk of buffered.get(id) ?? []) term.write(chunk)
-        buffered.delete(id)
+        if (replay) term.write(replay)
         void dhd().pty.resize(id, Math.max(term.cols, 80), Math.max(term.rows, 24))
       } catch (err) {
         if (!cancelled) {
@@ -84,7 +77,9 @@ export function TerminalPanel() {
       ro.disconnect()
       unsubData()
       unsubExit()
-      if (ptyId) void dhd().pty.kill(ptyId)
+      // Deliberately no pty.kill here: the shell keeps running so switching
+      // back to this tab reattaches to it. It is killed when the project or
+      // window changes (see pty.acquire / killSessionsOfOwner).
       term.dispose()
     }
   }, [app.projectPath])

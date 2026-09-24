@@ -4,7 +4,8 @@ import type {
   FileSearchHit,
   IpcEventMap,
   McpServerConfig,
-  PtyCreateOptions,
+  PtyAcquireResult,
+  PtyOptions,
   WorkspaceSyncResult,
 } from '@dhd/shared'
 
@@ -66,7 +67,8 @@ const api = {
     log: (cwd: string) => ipcRenderer.invoke('git.log', cwd),
   },
   pty: {
-    create: (options: PtyCreateOptions) => ipcRenderer.invoke('pty.create', options) as Promise<string>,
+    acquire: (options: PtyOptions) =>
+      ipcRenderer.invoke('pty.acquire', options) as Promise<PtyAcquireResult>,
     write: (id: string, data: string) => ipcRenderer.invoke('pty.write', id, data),
     resize: (id: string, cols: number, rows: number) => ipcRenderer.invoke('pty.resize', id, cols, rows),
     kill: (id: string) => ipcRenderer.invoke('pty.kill', id),

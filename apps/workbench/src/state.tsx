@@ -83,6 +83,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     let unsubHost: (() => void) | undefined
     let unsubMenu: (() => void) | undefined
     let unsubSettings: (() => void) | undefined
+    // StrictMode double-invokes this effect in dev; without the flag the
+    // first (already-cleaned-up) run would subscribe again and leak handlers.
+    let cancelled = false
     void (async () => {
       const api = dhd()
       const [loaded, plat, key, hostState] = await Promise.all([
@@ -91,6 +94,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         api.credentials.has(),
         api.host.status(),
       ])
+      if (cancelled) return
       setSettingsState(loaded)
       setActivity(loaded.window.activity)
       setPanel(loaded.window.panel)
@@ -102,6 +106,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         : loaded.theme
       const initial = projectFromUrl()
       if (initial) await api.project.open(initial)
+      if (cancelled) return
       unsubHost = api.on('host:changed', setHost)
       unsubSettings = api.on('settings:changed', setSettingsState)
       unsubMenu = api.on('menu:command', (command) => {
@@ -110,6 +115,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setReady(true)
     })()
     return () => {
+      cancelled = true
       unsubHost?.()
       unsubMenu?.()
       unsubSettings?.()

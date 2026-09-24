@@ -123,10 +123,17 @@ export interface InlineEditResult {
   model: string
 }
 
-export interface PtyCreateOptions {
+export interface PtyOptions {
   cwd: string
   cols: number
   rows: number
+}
+
+/** Terminal sessions survive panel/tab switches: acquiring an existing
+ *  (window, cwd) session reattaches to it and replays buffered output. */
+export interface PtyAcquireResult {
+  id: string
+  replay: string
 }
 
 /** Result of registering a project directory as a harness workspace. */
@@ -182,7 +189,7 @@ export type IpcChannel =
   | 'git.branches'
   | 'git.log'
   | 'git.clone'
-  | 'pty.create'
+  | 'pty.acquire'
   | 'pty.write'
   | 'pty.resize'
   | 'pty.kill'

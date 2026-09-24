@@ -1,13 +1,13 @@
 import { BrowserWindow, ipcMain, shell as electronShell } from 'electron'
 import { watch, type FSWatcher } from 'chokidar'
-import type { AppSettings, McpServerConfig, SearchPhase, WorkspaceSyncResult } from '@dhd/shared'
+import type { AppSettings, McpServerConfig, PtyOptions, SearchPhase, WorkspaceSyncResult } from '@dhd/shared'
 import { hasApiKey, setApiKey, clearApiKey } from './credentials.ts'
 import { HarnessApi, seedHarnessSession } from './harness-api.ts'
 import * as fs from './fs-service.ts'
 import * as git from './git-service.ts'
 import { runInlineEdit } from './inline-edit.ts'
 import { listRuleFiles, loadMcp, saveMcp } from './mcp-service.ts'
-import { createPty, killPty, resizePty, writePty } from './pty-service.ts'
+import { acquirePty, killPty, killSessionsOfOwner, resizePty, writePty } from './pty-service.ts'
 import { cancelSearch, listFiles, searchContent } from './search-service.ts'
 import { loadSettings, rememberProject, saveSettings } from './settings-store.ts'
 import type { HostProcess } from './host.ts'
@@ -95,15 +95,18 @@ export function registerIpc(ctx: IpcContext): void {
   ipcMain.handle('git.branches', (_e, cwd: string) => git.gitBranches(cwd))
   ipcMain.handle('git.log', (_e, cwd: string) => git.gitLog(cwd))
 
-  ipcMain.handle('pty.create', async (e, options) => {
+  ipcMain.handle('pty.acquire', async (e, options: PtyOptions) => {
     try {
-      return await createPty(options, (id, data) => {
+      const owner = e.sender.id
+      // Terminal sessions outlive panel switches; they die with their window.
+      e.sender.once('destroyed', () => killSessionsOfOwner(owner))
+      return await acquirePty(options, owner, (id, data) => {
         if (!e.sender.isDestroyed()) e.sender.send('pty:data', { id, data })
       }, (id, exitCode) => {
         if (!e.sender.isDestroyed()) e.sender.send('pty:exit', { id, exitCode })
       })
     } catch (err) {
-      console.error('[pty.create]', err)
+      console.error('[pty.acquire]', err)
       throw err
     }
   })
