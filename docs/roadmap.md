@@ -1,6 +1,6 @@
 # DHD 产品与技术路线图
 
-> 版本：2026-09-24 重设计版。基线：`f163779`；Harness gitlink：`00102833d`（`dsh-v0.1.7-alpha.2`）。
+> 版本：2026-09-24 重设计版。基线：`9d47a5c`；Harness gitlink：`00102833d`（`dsh-v0.1.7-alpha.2`）。
 >
 > 这份文档是未来工作的 source of truth。`docs/design.md` 保留为历史原型与决策背景，不再代表当前实现状态。
 
