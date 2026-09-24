@@ -1,6 +1,6 @@
 # 当前支持矩阵
 
-> 这是“当前版本能做什么”的唯一摘要。版本绑定：`9d47a5c`；Harness gitlink：`00102833dfaee1da9f48a3a8eae9d34005a75218` / `dsh-v0.1.7-alpha.2`；快照：2026-09-24。
+> 这是“当前版本能做什么”的唯一摘要。版本绑定：`c58b815`；Harness gitlink：`00102833dfaee1da9f48a3a8eae9d34005a75218` / `dsh-v0.1.7-alpha.2`；快照：2026-09-24。
 >
 > 状态标签：`已验证`、`已实现未自动化`、`上游能力`、`实验性`、`计划中`、`不支持/未实现`。
 
@@ -14,9 +14,9 @@
 | 外部 Host 复用 | 已实现未自动化 | `DHD_HARNESS_URL` 解析后不由桌面终止；workspace sync 需要 token |
 | Workspace/session sync | 已验证（macOS arm64） | `pnpm smoke:workspace` 通过真实 Host RPC 验证 `workspace/create` 幂等、session 创建/复用和无残留退出；DHD Renderer 注入仍依赖 iframe 私有 storage seam |
 | Runtime manifest | 已验证 | schema v3；`pnpm runtime:manifest` / `packaged` 生成，包含 DHD build-output digest 和 target closure inventory；`doctor:env` 和 `app.capabilities.runtime` 摘要可读取 |
-| Packaged runtime preflight | 已实现未发行验证 | closure Host smoke 已通过真实 bundled `dsh web` ready/关闭；实际 app resources 的 post-pack 校验、签名和安装后流程仍待完成 |
-| 打包脚本 | 已验证（macOS arm64）/未发行 | 旧 electron-builder unpacked、zip、DMG 流程已验证；closure-inclusive resources 尚待本轮实际 pack smoke；未配置 notarization，Windows/Linux 未验证 |
-| 完整 runtime 捆绑 | 已实现未发行验证 | `scripts/prepare-runtime-closure.mjs` 已生成 dsh first-party peers/vendor、Node、pnpm、目标平台 rg 的逐文件 inventory；签名、公证、安装后 smoke 和跨平台仍未完成 |
+| Packaged runtime preflight | 已验证（macOS arm64）/未发行 | closure Host smoke、实际 app resources inventory 和 230 个经 `codesign --verify --deep --strict` 验证的签名变更均通过；正式发行仍需公证和安装后流程 |
+| 打包脚本 | 已验证（macOS arm64）/未发行 | electron-builder unpacked、zip、DMG 和 closure-inclusive resources 已验证；当前使用 Apple Development identity，未配置 notarization，Windows/Linux 未验证 |
+| 完整 runtime 捆绑 | 已验证（macOS arm64 staging）/未发行 | `scripts/prepare-runtime-closure.mjs` 生成 30,352 个 dsh first-party/vendor、Node、pnpm、目标平台 rg 文件并完成逐文件 inventory；正式签名后 inventory、公证、升级回滚和跨平台仍未完成 |
 | Linux 安装包 | 计划中 | 可构建配置存在，但未纳入本版本的质量/发行承诺 |
 
 ## 2. Workbench 能力

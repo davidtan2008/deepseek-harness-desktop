@@ -21,4 +21,4 @@
 
 ## 当前身份
 
-DHD 是独立的社区 source preview。它使用固定的 Harness checkout，默认完整 Agent surface 仍是 iframe；workspace sync 后 Main-owned native Session transport 可作为并行 turn projection。runtime closure 已有 target-specific staging 入口，但最终 app resources、签名发行和真实 provider/model review loop 不能当作现有能力。
+DHD 是独立的社区 source preview。它使用固定的 Harness checkout，默认完整 Agent surface 仍是 iframe；workspace sync 后 Main-owned native Session transport 可作为并行 turn projection。runtime closure 已有 target-specific staging 和 macOS arm64 post-pack resource check，但正式签名发行、跨平台安装和真实 provider/model review loop 不能当作现有能力。

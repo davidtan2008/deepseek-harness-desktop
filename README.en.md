@@ -43,7 +43,7 @@ Important current limits:
 - Selection handoff uses structured Session context when the native channel is available; iframe/clipboard handoff remains an explicit fallback.
 - The Changes panel is still repository-level Git diff; native `change-projection` currently exposes changed paths only.
 - Desktop `defaultModel`, `defaultPreset`, and `sandboxMode` are not automatically Host-effective settings.
-- The repository now has a target-specific Harness/Node/pnpm/rg closure staging entry point, but final packaged-resource verification, installed startup, signing/notarization and cross-platform evidence are still pending. A packaged Host fails closed when the runtime manifest is incomplete instead of silently falling back to system Node/npx.
+- The repository now has a target-specific Harness/Node/pnpm/rg closure staging entry point and a macOS arm64 post-pack resource check, but installed startup, formal signing/notarization and cross-platform release evidence are still pending. A packaged Host fails closed when the runtime manifest is incomplete instead of silently falling back to system Node/npx.
 - The outer repository has no complete unit/E2E suite; `pnpm test:contract` covers capability, IPC/preload, Host IPC/Session fixtures, and the static upstream Desktop compatibility gate; typecheck/build are not real provider/model tests.
 
 See the version-bound [support matrix](docs/support-matrix.md) before making product claims.
