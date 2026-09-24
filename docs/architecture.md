@@ -90,7 +90,7 @@ apps/workbench/src/
 ├── SearchPanel.tsx         # 流式搜索/取消/错误态
 ├── TerminalPanel.tsx       # xterm + PTY
 ├── ScmPanel.tsx            # Git
-├── ChangesPanel.tsx         # 仓库级 diff
+├── ChangesPanel.tsx         # Agent changed-path 摘要 + 当前 Git diff
 ├── CommandPalette.tsx      # 快开/命令
 ├── InlineEdit.tsx           # 行内编辑
 ├── SettingsPanels.tsx       # 设置/MCP/Rules
